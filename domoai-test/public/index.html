@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 캐릭터 챗 - DomoAI 테스트</title>
+  <style>
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a22;
+      --surface2: #22222e;
+      --border: #2e2e3e;
+      --accent: #7c5cbf;
+      --accent2: #a07de0;
+      --text: #e8e8f0;
+      --text-muted: #8888aa;
+      --bubble-ai: #1e1e2e;
+      --bubble-user: #2d1f5e;
+      --success: #4caf89;
+      --warning: #e0a060;
+      --danger: #e05050;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans KR', 'Segoe UI', sans-serif;
+      height: 100dvh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── 사이드패널 (관리자/설정) ── */
+    .side-panel {
+      width: 300px;
+      min-width: 300px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .side-header {
+      padding: 20px 16px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .side-header h2 {
+      font-size: 15px;
+      color: var(--accent2);
+      letter-spacing: .5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .side-header p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .side-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* API 상태 배지 */
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-badge.ok   { background: rgba(76,175,137,.15); color: var(--success); border: 1px solid rgba(76,175,137,.3); }
+    .status-badge.warn { background: rgba(224,160,96,.15);  color: var(--warning); border: 1px solid rgba(224,160,96,.3); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+    /* 섹션 */
+    .section { display: flex; flex-direction: column; gap: 8px; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; }
+
+    input[type=text], input[type=file], select, textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 9px 12px;
+      outline: none;
+      transition: border .2s;
+      font-family: inherit;
+    }
+    input[type=text]:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+    textarea { resize: vertical; min-height: 70px; }
+
+    /* 이미지 업로드 박스 */
+    .upload-box {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: border .2s, background .2s;
+    }
+    .upload-box:hover { border-color: var(--accent); background: rgba(124,92,191,.05); }
+    .upload-box input { display: none; }
+    .upload-box .preview {
+      max-width: 100%;
+      max-height: 140px;
+      border-radius: 6px;
+      object-fit: cover;
+      display: none;
+    }
+    .upload-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* 버튼 */
+    .btn {
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: opacity .2s, transform .1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent2); }
+    .btn-outline { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent2); }
+
+    /* 프롬프트 프리셋 칩 */
+    .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      padding: 5px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all .2s;
+      color: var(--text-muted);
+    }
+    .chip:hover, .chip.active { border-color: var(--accent); color: var(--accent2); background: rgba(124,92,191,.1); }
+
+    /* ── 메인 채팅 ── */
+    .chat-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 채팅 헤더 */
+    .chat-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .char-avatar {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--accent);
+    }
+    .char-info h3 { font-size: 15px; font-weight: 700; }
+    .char-info span { font-size: 12px; color: var(--text-muted); }
+    .header-badge {
+      margin-left: auto;
+      padding: 4px 10px;
+      background: rgba(124,92,191,.2);
+      border: 1px solid rgba(124,92,191,.4);
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--accent2);
+    }
+
+    /* 채팅 메시지 영역 */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* ── 메시지 블록 ── */
+    .msg-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-bottom: 18px;
+      max-width: 75%;
+    }
+    .msg-group.ai  { align-self: flex-start; align-items: flex-start; }
+    .msg-group.user { align-self: flex-end;  align-items: flex-end; }
+
+    /* 캐릭터 이름 + 아바타 */
+    .msg-sender {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .msg-sender img {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .msg-sender span { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+
+    /* 텍스트 버블 */
+    .bubble {
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.7;
+      word-break: break-word;
+    }
+    .bubble.ai {
+      background: var(--bubble-ai);
+      border: 1px solid var(--border);
+      border-top-left-radius: 4px;
+      color: var(--text);
+    }
+    /* 내러티브 텍스트 (이탤릭, 제타처럼) */
+    .bubble.ai .narrative {
+      font-style: italic;
+      color: #b0a0d0;
+      display: block;
+      margin-bottom: 8px;
+      line-height: 1.8;
+    }
+    .bubble.ai .dialogue {
+      color: var(--text);
+      font-weight: 500;
+    }
+    .bubble.user {
+      background: var(--bubble-user);
+      border: 1px solid rgba(124,92,191,.3);
+      border-top-right-radius: 4px;
+      color: var(--text);
+    }
+
+    /* ── 인라인 이미지 카드 ── */
+    .image-card {
+      margin: 6px 0;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      max-width: 320px;
+      position: relative;
+      cursor: pointer;
+      transition: transform .2s;
+    }
+    .image-card:hover { transform: scale(1.01); }
+    .image-card img {
+      width: 100%;
+      display: block;
+      background: var(--surface2);
+      min-height: 200px;
+    }
+    .image-card .img-overlay {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,.7));
+      padding: 24px 12px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .image-card .img-prompt {
+      font-size: 11px;
+      color: rgba(255,255,255,.75);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .image-card .img-badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      background: rgba(124,92,191,.7);
+      border-radius: 10px;
+      color: #fff;
+      flex-shrink: 0;
+      margin-left: 6px;
+    }
+    /* 이미지 생성 중 스켈레톤 */
+    .image-skeleton {
+      width: 100%;
+      min-height: 220px;
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--surface) 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 버블 아래 액션 버튼 */
+    .bubble-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .msg-group:hover .bubble-actions { opacity: 1; }
+    .action-btn {
+      padding: 3px 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .action-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
+    /* 입력창 영역 */
+    .chat-input-wrap {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      flex-shrink: 0;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .input-box {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      color: var(--text);
+      font-family: inherit;
+      resize: none;
+      min-height: 48px;
+      max-height: 120px;
+      outline: none;
+      transition: border .2s;
+      line-height: 1.5;
+    }
+    .input-box:focus { border-color: var(--accent); }
+    .input-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .icon-btn {
+      width: 40px; height: 40px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { border-color: var(--accent); background: rgba(124,92,191,.1); }
+    .send-btn {
+      width: 44px; height: 44px;
+      background: var(--accent);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #fff;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+    .send-btn:hover { background: var(--accent2); }
+    .send-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* 입력창 아래 힌트 */
+    .input-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      display: flex;
+      gap: 12px;
+    }
+    .hint-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      transition: all .2s;
+    }
+    .hint-chip:hover { border-color: var(--accent); color: var(--accent2); }
+
+    /* 타이핑 인디케이터 */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 12px 16px;
+      background: var(--bubble-ai);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      border-top-left-radius: 4px;
+      width: fit-content;
+    }
+    .typing-dot {
+      width: 7px; height: 7px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: .2s; }
+    .typing-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-6px); }
+    }
+
+    /* 이미지 라이트박스 */
+    .lightbox {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .lightbox.open { opacity: 1; pointer-events: all; }
+    .lightbox img {
+      max-width: 90vw;
+      max-height: 90vh;
+      border-radius: 12px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.5);
+    }
+    .lightbox-close {
+      position: absolute; top: 20px; right: 20px;
+      background: rgba(255,255,255,.1);
+      border: none;
+      color: #fff;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 스크롤바 */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* 반응형 */
+    @media (max-width: 768px) {
+      .side-panel { display: none; }
+    }
+
+    /* 생성 결과 로그 */
+    .gen-log {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+      max-height: 120px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    .gen-log .log-ok   { color: var(--success); }
+    .gen-log .log-warn { color: var(--warning); }
+    .gen-log .log-err  { color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<!-- ── 사이드 패널 (관리자/DomoAI 설정) ── -->
+<aside class="side-panel">
+  <div class="side-header">
+    <h2>⚙️ 관리자 설정</h2>
+    <p>캐릭터 & DomoAI 이미지 생성 테스트</p>
+  </div>
+  <div class="side-body">
+
+    <!-- API 상태 -->
+    <div class="section">
+      <div class="section-title">DomoAI 연결 상태</div>
+      <div id="apiStatus" class="status-badge warn">
+        <span class="status-dot"></span>
+        <span>확인 중...</span>
+      </div>
+    </div>
+
+    <!-- 캐릭터 레퍼런스 이미지 설정 -->
+    <div class="section">
+      <div class="section-title">📸 캐릭터 레퍼런스 이미지</div>
+      <p style="font-size:11px;color:var(--text-muted);line-height:1.6">
+        이 이미지를 기준으로 DomoAI가 캐릭터 일관성을 유지하면서<br>표정/상황을 바꾼 이미지를 생성합니다.
+      </p>
+      <div class="upload-box" onclick="document.getElementById('refImageInput').click()">
+        <input type="file" id="refImageInput" accept="image/*" onchange="previewRefImage(this)" />
+        <img id="refPreview" class="preview" src="" alt="레퍼런스" />
+        <div id="uploadHint">
+          <div style="font-size:24px">🖼️</div>
+          <div class="upload-hint">클릭하여 캐릭터 기준 이미지 업로드<br>(JPG/PNG, 10MB 이하)</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted)">또는 URL로 설정:</div>
+      <input type="text" id="refImageUrl" placeholder="https://..." />
+      <button class="btn btn-outline" onclick="loadRefFromUrl()">URL로 미리보기</button>
+    </div>
+
+    <!-- 이미지 생성 스타일 -->
+    <div class="section">
+      <div class="section-title">🎨 생성 스타일</div>
+      <label>기본 스타일</label>
+      <select id="genStyle">
+        <option value="anime">애니메이션 (Anime)</option>
+        <option value="manhwa">만화/웹툰 (Manhwa)</option>
+        <option value="realistic">실사풍 (Realistic)</option>
+        <option value="illustration">일러스트</option>
+      </select>
+
+      <label>표정/상황 프리셋</label>
+      <div class="presets" id="presetChips">
+        <span class="chip" onclick="setPreset(this, '슬픈 표정, 눈물이 맺힌')">😢 슬픔</span>
+        <span class="chip" onclick="setPreset(this, '환하게 웃는 표정, 행복한')">😊 기쁨</span>
+        <span class="chip" onclick="setPreset(this, '당황하고 놀란 표정')">😳 당황</span>
+        <span class="chip" onclick="setPreset(this, '냉정하고 차가운 표정')">😐 냉정</span>
+        <span class="chip" onclick="setPreset(this, '부끄럽고 수줍은 표정, 볼이 붉은')">😳 수줍음</span>
+        <span class="chip" onclick="setPreset(this, '진지하고 결연한 표정')">😤 결연</span>
+        <span class="chip" onclick="setPreset(this, '화가 난 표정')">😠 분노</span>
+        <span class="chip" onclick="setPreset(this, '잠이 오는 졸린 표정')">😴 졸림</span>
+      </div>
+
+      <label>추가 프롬프트</label>
+      <textarea id="customPrompt" placeholder="예: 교실 창가에 서있는, 교복 착용, 바람에 머리카락이 날리는..."></textarea>
+    </div>
+
+    <!-- 수동 테스트 생성 -->
+    <div class="section">
+      <div class="section-title">🧪 이미지 생성 테스트</div>
+      <button class="btn btn-primary" id="testGenBtn" onclick="testGenerateImage()">
+        ✨ 지금 이미지 생성 테스트
+      </button>
+      <div id="genLog" class="gen-log" style="display:none"></div>
+    </div>
+
+  </div>
+</aside>
+
+<!-- ── 메인 채팅 ── -->
+<div class="chat-wrap">
+
+  <!-- 헤더 -->
+  <div class="chat-header">
+    <img id="headerAvatar" class="char-avatar" src="https://api.dicebear.com/7.x/adventurer/svg?seed=character" alt="캐릭터" />
+    <div class="char-info">
+      <h3 id="charName">도하준</h3>
+      <span>AI 캐릭터 · 온라인</span>
+    </div>
+    <span class="header-badge">DomoAI 테스트 모드</span>
+  </div>
+
+  <!-- 메시지 목록 -->
+  <div class="chat-messages" id="chatMessages"></div>
+
+  <!-- 입력창 -->
+  <div class="chat-input-wrap">
+    <div class="input-row">
+      <textarea
+        class="input-box"
+        id="msgInput"
+        placeholder="메시지를 입력하세요..."
+        rows="1"
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <div class="input-actions">
+        <button class="icon-btn" title="이미지 생성" onclick="triggerImageGen()">🎨</button>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">▶</button>
+      </div>
+    </div>
+    <div class="input-hint">
+      <span class="hint-chip" onclick="insertHint('*조용히 창문을 바라본다*')">✍️ 상황 묘사</span>
+      <span class="hint-chip" onclick="triggerImageGen()">🎨 이미지 생성</span>
+      <span class="hint-chip" onclick="insertHint('지금 어떤 표정이야?')">😊 표정 변화</span>
+    </div>
+  </div>
+</div>
+
+<!-- 라이트박스 -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="" />
+</div>
+
+<script>
+// ── 상태 ──
+let refImageBase64 = null;
+let refImageUrl    = null;
+let currentStyle   = 'anime';
+let selectedPreset = '';
+let isGenerating   = false;
+let charAvatarSrc  = 'https://api.dicebear.com/7.x/adventurer/svg?seed=character';
+
+// 샘플 캐릭터 응답 (Claude API 연동 전 목업)
+const sampleResponses = [
+  {
+    narrative: "그는 창문 너머 하늘을 바라보다 천천히 고개를 돌렸다. 헝클어진 머리카락 사이로 그의 눈이 반짝였다.",
+    dialogue: "\"......왜 그런 걸 물어보는 거야.\"",
+    generateImage: false
+  },
+  {
+    narrative: "한참의 침묵이 흘렀다. 그는 입술을 굳게 다물고, 무언가를 결심한 듯 눈을 감았다.",
+    dialogue: "\"...모르겠어. 나도 잘 모르겠다고.\"",
+    generateImage: true,
+    imagePrompt: "남자 캐릭터, 눈을 감고 결심한 듯한 표정, 실내 조명"
+  },
+  {
+    narrative: "그가 희미하게 웃었다. 그것은 어딘가 쓸쓸하고, 동시에 따뜻한 미소였다.",
+    dialogue: "\"...그냥, 네가 있어서 다행이라고 생각했어.\"",
+    generateImage: true,
+    imagePrompt: "남자 캐릭터, 쓸쓸하고 따뜻한 미소, 부드러운 조명"
+  },
+  {
+    narrative: "그는 당황한 듯 시선을 피했다. 귀 끝이 살짝 붉어지는 것이 보였다.",
+    dialogue: "\"갑자기 무슨 소리야, 진짜.\"",
+    generateImage: false
+  },
+  {
+    narrative: "침묵. 그는 오랫동안 아무 말도 하지 않았다. 교무실 벽시계 소리만이 그 공간을 채웠다.",
+    dialogue: "\"...지금은 말하기 싫어.\"",
+    generateImage: true,
+    imagePrompt: "남자 캐릭터, 입을 다물고 침묵하는 모습, 어두운 조명"
+  }
+];
+let responseIdx = 0;
+
+// ── 초기화 ──
+document.addEventListener('DOMContentLoaded', () => {
+  checkApiStatus();
+  appendInitialMessage();
+});
+
+function checkApiStatus() {
+  fetch('/api/domoai-status')
+    .then(r => r.json())
+    .then(d => {
+      const el = document.getElementById('apiStatus');
+      if (d.connected) {
+        el.className = 'status-badge ok';
+        el.innerHTML = '<span class="status-dot"></span><span>DomoAI 연결됨</span>';
+      } else {
+        el.className = 'status-badge warn';
+        el.innerHTML = '<span class="status-dot"></span><span>API 키 미설정 (테스트 모드)</span>';
+      }
+    })
+    .catch(() => {
+      const el = document.getElementById('apiStatus');
+      el.className = 'status-badge warn';
+      el.innerHTML = '<span class="status-dot"></span><span>서버 연결 중...</span>';
+    });
+}
+
+function appendInitialMessage() {
+  const msgs = document.getElementById('chatMessages');
+  const group = document.createElement('div');
+  group.className = 'msg-group ai';
+  group.innerHTML = `
+    <div class="msg-sender">
+      <img src="${charAvatarSrc}" alt="도하준" />
+      <span>도하준</span>
+    </div>
+    <div class="bubble ai">
+      <span class="narrative">교무실이라는 공간도, 교사라는 자신의 신분도, 그 모든 것이 희미한 연기처럼 흩어지고 있었다. 오직 두 사람만이 존재하는, 세상과 단절된 작은 섬에 갇혀버린 기분이었다. 그는 굳게 다물었던 입술을 힘겹게 열었다.</span>
+      <span class="dialogue">"…….아."</span>
+    </div>
+    <div class="image-card" onclick="openLightbox('https://api.dicebear.com/7.x/big-ears/svg?seed=dohajoon&backgroundColor=1a1a2e')">
+      <img src="https://api.dicebear.com/7.x/big-ears/svg?seed=dohajoon&backgroundColor=1a1a2e" alt="캐릭터 이미지" style="min-height:160px" />
+      <div class="img-overlay">
+        <span class="img-prompt">기본 캐릭터 프로필</span>
+        <span class="img-badge">캐릭터 이미지</span>
+      </div>
+    </div>
+    <div class="bubble-actions">
+      <span class="action-btn">🔄 다시 생성</span>
+      <span class="action-btn">🎨 이미지 변경</span>
+    </div>
+  `;
+  msgs.appendChild(group);
+}
+
+// ── 메시지 전송 ──
+async function sendMessage() {
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text || isGenerating) return;
+
+  appendUserMessage(text);
+  input.value = '';
+  autoResize(input);
+
+  showTyping();
+  await delay(1200 + Math.random() * 800);
+
+  const resp = sampleResponses[responseIdx % sampleResponses.length];
+  responseIdx++;
+
+  hideTyping();
+  await appendAiMessage(resp);
+}
+
+function appendUserMessage(text) {
+  const msgs = document.getElementById('chatMessages');
+  const group = document.createElement('div');
+  group.className = 'msg-group user';
+  group.innerHTML = `<div class="bubble user">${escHtml(text)}</div>`;
+  msgs.appendChild(group);
+  scrollBottom();
+}
+
+async function appendAiMessage(resp) {
+  const msgs = document.getElementById('chatMessages');
+  const group = document.createElement('div');
+  group.className = 'msg-group ai';
+
+  let innerHtml = `
+    <div class="msg-sender">
+      <img src="${charAvatarSrc}" alt="도하준" />
+      <span>도하준</span>
+    </div>
+    <div class="bubble ai">
+      <span class="narrative">${escHtml(resp.narrative)}</span>
+      <span class="dialogue">${escHtml(resp.dialogue)}</span>
+    </div>`;
+
+  if (resp.generateImage) {
+    // 스켈레톤 먼저 표시
+    innerHtml += `
+      <div class="image-skeleton" id="skeleton-${responseIdx}">
+        <div class="spinner"></div>
+        <span>🎨 DomoAI 이미지 생성 중...</span>
+        <span style="font-size:10px;opacity:.6">${resp.imagePrompt}</span>
+      </div>`;
+  }
+
+  innerHtml += `
+    <div class="bubble-actions">
+      <span class="action-btn">🔄 다시 생성</span>
+      <span class="action-btn" onclick="triggerImageGen()">🎨 이미지 생성</span>
+    </div>`;
+
+  group.innerHTML = innerHtml;
+  msgs.appendChild(group);
+  scrollBottom();
+
+  // 이미지 생성 요청
+  if (resp.generateImage) {
+    isGenerating = true;
+    document.getElementById('sendBtn').disabled = true;
+    try {
+      const result = await generateImage(resp.imagePrompt);
+      const skeletonEl = document.getElementById(`skeleton-${responseIdx}`);
+      if (skeletonEl && result.imageUrl) {
+        const card = document.createElement('div');
+        card.className = 'image-card';
+        card.innerHTML = `
+          <img src="${result.imageUrl}" alt="생성된 이미지" onload="scrollBottom()" />
+          <div class="img-overlay">
+            <span class="img-prompt">${escHtml(resp.imagePrompt)}</span>
+            <span class="img-badge">${result.mock ? '테스트 이미지' : 'DomoAI'}</span>
+          </div>`;
+        card.onclick = () => openLightbox(result.imageUrl);
+        skeletonEl.replaceWith(card);
+        scrollBottom();
+      }
+    } catch (e) {
+      const skeletonEl = document.getElementById(`skeleton-${responseIdx}`);
+      if (skeletonEl) skeletonEl.innerHTML = '<span style="color:var(--danger);padding:16px">이미지 생성 실패</span>';
+    } finally {
+      isGenerating = false;
+      document.getElementById('sendBtn').disabled = false;
+    }
+  }
+}
+
+// ── DomoAI 이미지 생성 API 호출 ──
+async function generateImage(prompt) {
+  const style = document.getElementById('genStyle').value;
+  const extra = document.getElementById('customPrompt').value;
+  const fullPrompt = [selectedPreset, prompt, extra].filter(Boolean).join(', ');
+
+  const body = {
+    prompt: fullPrompt,
+    style: style
+  };
+
+  // 레퍼런스 이미지 사용
+  if (refImageBase64) {
+    body.reference_base64 = refImageBase64;
+    const res = await fetch('/api/generate-character-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return await res.json();
+  } else if (refImageUrl) {
+    body.imageUrl = refImageUrl;
+    const res = await fetch('/api/generate-character-image-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return await res.json();
+  } else {
+    // 레퍼런스 없이 텍스트만으로 생성 (목업)
+    const res = await fetch('/api/generate-character-image-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        imageUrl: 'https://picsum.photos/seed/char/400/500', 
+        prompt: fullPrompt, 
+        style 
+      })
+    });
+    return await res.json();
+  }
+}
+
+// ── 수동 이미지 생성 테스트 ──
+async function testGenerateImage() {
+  const btn = document.getElementById('testGenBtn');
+  const log = document.getElementById('genLog');
+  log.style.display = 'block';
+  btn.disabled = true;
+  btn.textContent = '⏳ 생성 중...';
+
+  const prompt = document.getElementById('customPrompt').value || '캐릭터 기본 표정';
+  const style  = document.getElementById('genStyle').value;
+  const extra  = selectedPreset;
+  const fullPrompt = [extra, prompt].filter(Boolean).join(', ');
+
+  addLog(log, `▶ 요청: "${fullPrompt}" (스타일: ${style})`, '');
+
+  try {
+    const result = await generateImage(fullPrompt);
+    if (result.success) {
+      addLog(log, `✅ 성공! imageUrl: ${result.imageUrl?.substring(0,60)}...`, 'ok');
+      if (result.mock) addLog(log, `⚠️ 테스트 모드 (DomoAI API 키 미설정)`, 'warn');
+      // 채팅창에 결과 표시
+      const msgs = document.getElementById('chatMessages');
+      const card = document.createElement('div');
+      card.className = 'image-card';
+      card.style.maxWidth = '260px';
+      card.style.margin = '8px 16px';
+      card.innerHTML = `
+        <img src="${result.imageUrl}" alt="테스트 생성" onload="scrollBottom()" />
+        <div class="img-overlay">
+          <span class="img-prompt">${escHtml(fullPrompt)}</span>
+          <span class="img-badge">${result.mock ? '테스트' : 'DomoAI'}</span>
+        </div>`;
+      card.onclick = () => openLightbox(result.imageUrl);
+      msgs.appendChild(card);
+      scrollBottom();
+    } else {
+      addLog(log, `❌ 오류: ${result.error}`, 'err');
+    }
+  } catch(e) {
+    addLog(log, `❌ 네트워크 오류: ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ 지금 이미지 생성 테스트';
+  }
+}
+
+function addLog(el, msg, type) {
+  const span = document.createElement('div');
+  span.className = type ? `log-${type}` : '';
+  span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── 채팅에서 이미지 생성 트리거 ──
+async function triggerImageGen() {
+  const input = document.getElementById('msgInput');
+  const context = input.value.trim() || '현재 장면';
+  const prompt = `${context}, ${selectedPreset || ''}`;
+
+  const msgs = document.getElementById('chatMessages');
+  const skelId = `manual-${Date.now()}`;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'msg-group ai';
+  wrapper.innerHTML = `
+    <div class="msg-sender">
+      <img src="${charAvatarSrc}" alt="도하준" />
+      <span>도하준</span>
+    </div>
+    <div class="image-skeleton" id="${skelId}">
+      <div class="spinner"></div>
+      <span>🎨 DomoAI 이미지 생성 중...</span>
+    </div>`;
+  msgs.appendChild(wrapper);
+  scrollBottom();
+
+  isGenerating = true;
+  try {
+    const result = await generateImage(prompt);
+    const skel = document.getElementById(skelId);
+    if (skel && result.imageUrl) {
+      const card = document.createElement('div');
+      card.className = 'image-card';
+      card.innerHTML = `
+        <img src="${result.imageUrl}" alt="생성된 이미지" onload="scrollBottom()" />
+        <div class="img-overlay">
+          <span class="img-prompt">${escHtml(prompt.substring(0,40))}...</span>
+          <span class="img-badge">${result.mock ? '테스트 이미지' : 'DomoAI'}</span>
+        </div>`;
+      card.onclick = () => openLightbox(result.imageUrl);
+      skel.replaceWith(card);
+      scrollBottom();
+    }
+  } catch(e) {
+    const skel = document.getElementById(skelId);
+    if (skel) skel.innerHTML = '<span style="color:var(--danger);padding:16px">생성 실패</span>';
+  } finally {
+    isGenerating = false;
+  }
+}
+
+// ── 레퍼런스 이미지 처리 ──
+function previewRefImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    const base64  = dataUrl.split(',')[1];
+    refImageBase64 = base64;
+    refImageUrl    = null;
+    const preview = document.getElementById('refPreview');
+    const hint    = document.getElementById('uploadHint');
+    preview.src = dataUrl;
+    preview.style.display = 'block';
+    hint.style.display = 'none';
+    // 헤더 아바타도 업데이트
+    charAvatarSrc = dataUrl;
+    document.getElementById('headerAvatar').src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+function loadRefFromUrl() {
+  const url = document.getElementById('refImageUrl').value.trim();
+  if (!url) return;
+  refImageUrl = url;
+  refImageBase64 = null;
+  const preview = document.getElementById('refPreview');
+  const hint    = document.getElementById('uploadHint');
+  preview.src = url;
+  preview.style.display = 'block';
+  hint.style.display = 'none';
+  charAvatarSrc = url;
+  document.getElementById('headerAvatar').src = url;
+}
+
+function setPreset(el, preset) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  if (selectedPreset === preset) {
+    selectedPreset = '';
+  } else {
+    selectedPreset = preset;
+    el.classList.add('active');
+  }
+}
+
+// ── UI 유틸 ──
+let typingEl = null;
+function showTyping() {
+  const msgs = document.getElementById('chatMessages');
+  typingEl = document.createElement('div');
+  typingEl.className = 'msg-group ai';
+  typingEl.id = 'typingIndicator';
+  typingEl.innerHTML = `
+    <div class="msg-sender">
+      <img src="${charAvatarSrc}" alt="도하준" />
+      <span>도하준</span>
+    </div>
+    <div class="typing-indicator">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+    </div>`;
+  msgs.appendChild(typingEl);
+  scrollBottom();
+}
+
+function hideTyping() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+
+function scrollBottom() {
+  const msgs = document.getElementById('chatMessages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function insertHint(text) {
+  const input = document.getElementById('msgInput');
+  input.value = text;
+  input.focus();
+  autoResize(input);
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
