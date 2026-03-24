@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>관리자 패널 · AI 캐릭터 챗</title>
+  <style>
+    :root{
+      --bg:#0d0d10;--surface:#16161e;--surface2:#1e1e28;--surface3:#252533;
+      --border:#2a2a3a;--accent:#7c5cbf;--accent2:#a07de0;--accent3:#c4a8ff;
+      --text:#e8e8f0;--muted:#8888aa;--ok:#4caf89;--warn:#e0a060;--err:#e05050;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR','Segoe UI',sans-serif;min-height:100vh;}
+
+    /* ── 로그인 ── */
+    .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+    .login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px 36px;width:100%;max-width:380px;text-align:center;}
+    .login-card h1{font-size:22px;color:var(--accent3);margin-bottom:6px;}
+    .login-card p{font-size:12px;color:var(--muted);margin-bottom:28px;}
+    .login-card input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:14px;padding:12px 14px;outline:none;margin-bottom:12px;transition:border .2s;}
+    .login-card input:focus{border-color:var(--accent);}
+    .login-card .err{color:var(--err);font-size:12px;margin-bottom:10px;min-height:18px;}
+
+    /* ── 레이아웃 ── */
+    #adminApp{display:none;}
+    .admin-layout{display:flex;min-height:100vh;}
+    .admin-nav{width:220px;min-width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}
+    .nav-head{padding:20px 16px 14px;border-bottom:1px solid var(--border);}
+    .nav-head h1{font-size:14px;color:var(--accent3);font-weight:700;}
+    .nav-head p{font-size:10px;color:var(--muted);margin-top:2px;}
+    .nav-items{padding:10px 8px;flex:1;}
+    .nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--muted);transition:all .2s;margin-bottom:2px;}
+    .nav-item:hover{background:var(--surface2);color:var(--text);}
+    .nav-item.active{background:rgba(124,92,191,.2);color:var(--accent3);}
+    .nav-item .ni{width:18px;text-align:center;font-size:14px;}
+    .nav-divider{height:1px;background:var(--border);margin:8px 0;}
+    .nav-foot{padding:12px 16px;border-top:1px solid var(--border);}
+
+    .admin-main{flex:1;overflow-x:hidden;}
+    .page{display:none;padding:28px 32px;max-width:920px;}
+    .page.active{display:block;}
+    .page-head{margin-bottom:24px;}
+    .page-head h2{font-size:18px;font-weight:700;}
+    .page-head p{font-size:12px;color:var(--muted);margin-top:4px;}
+
+    /* ── 공통 폼 ── */
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px 24px;margin-bottom:20px;}
+    .card-title{font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+    .field{margin-bottom:16px;}
+    .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;}
+    .field input,.field select,.field textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 12px;outline:none;transition:border .2s;font-family:inherit;}
+    .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
+    .field textarea{resize:vertical;line-height:1.7;}
+    .field-row{display:grid;gap:14px;grid-template-columns:1fr 1fr;}
+
+    /* 업로드 */
+    .upload-box{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:var(--surface2);}
+    .upload-box:hover{border-color:var(--accent);background:rgba(124,92,191,.05);}
+    .upload-box input{display:none;}
+    .upload-box img.preview{max-width:100%;max-height:140px;border-radius:8px;object-fit:cover;margin-bottom:8px;display:none;}
+    .ub-hint{font-size:12px;color:var(--muted);}
+    .ub-icon{font-size:28px;margin-bottom:8px;}
+
+    /* 버튼 */
+    .btn{padding:10px 18px;border-radius:8px;border:none;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+    .btn:active{transform:scale(.97);}
+    .btn:disabled{opacity:.4;cursor:not-allowed;}
+    .btn-primary{background:var(--accent);color:#fff;}
+    .btn-primary:hover:not(:disabled){background:var(--accent2);}
+    .btn-danger{background:rgba(224,80,80,.15);color:var(--err);border:1px solid rgba(224,80,80,.3);}
+    .btn-danger:hover:not(:disabled){background:rgba(224,80,80,.25);}
+    .btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+    .btn-ghost:hover:not(:disabled){border-color:var(--accent);color:var(--accent2);}
+    .btn-success{background:rgba(76,175,137,.2);color:var(--ok);border:1px solid rgba(76,175,137,.3);}
+    .btn-sm{padding:6px 12px;font-size:11px;}
+    .btn-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+
+    /* 태그 */
+    .tag-wrap{display:flex;flex-wrap:wrap;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;min-height:44px;cursor:text;}
+    .tag-wrap:focus-within{border-color:var(--accent);}
+    .tag{display:flex;align-items:center;gap:4px;padding:3px 9px;background:rgba(124,92,191,.2);border:1px solid rgba(124,92,191,.3);border-radius:20px;font-size:11px;color:var(--accent3);}
+    .tag button{border:none;background:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;}
+    .tag-input{border:none;outline:none;background:transparent;font-size:12px;color:var(--text);font-family:inherit;min-width:80px;padding:2px 4px;}
+
+    /* 상황 이미지 카드 */
+    .si-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;display:flex;gap:14px;align-items:flex-start;}
+    .si-img{width:80px;height:80px;min-width:80px;border-radius:8px;object-fit:cover;background:var(--surface3);border:1px solid var(--border);}
+    .si-img-placeholder{width:80px;height:80px;min-width:80px;border-radius:8px;background:var(--surface3);border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted);}
+    .si-body{flex:1;min-width:0;}
+    .si-trigger{font-size:11px;color:var(--accent2);font-weight:600;background:rgba(124,92,191,.1);border-radius:4px;padding:2px 7px;display:inline-block;margin-bottom:5px;}
+    .si-desc{font-size:12px;color:var(--muted);}
+
+    /* 예시 대화 */
+    .ex-dlg{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;}
+    .ex-label{font-size:10px;color:var(--muted);font-weight:600;margin-bottom:4px;}
+
+    /* 배지 */
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;}
+    .badge.ok  {background:rgba(76,175,137,.15);color:var(--ok);border:1px solid rgba(76,175,137,.3);}
+    .badge.warn{background:rgba(224,160,96,.15);color:var(--warn);border:1px solid rgba(224,160,96,.3);}
+    .badge.err {background:rgba(224,80,80,.15);color:var(--err);border:1px solid rgba(224,80,80,.3);}
+    .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
+    /* 인포 박스 */
+    .info-box{background:rgba(124,92,191,.07);border:1px solid rgba(124,92,191,.2);border-radius:8px;padding:10px 13px;font-size:11px;color:#b0a0d0;line-height:1.7;margin-bottom:14px;}
+    .info-box code{background:rgba(124,92,191,.15);padding:1px 5px;border-radius:3px;font-size:10px;}
+    .warn-box{background:rgba(224,160,96,.07);border:1px solid rgba(224,160,96,.2);border-radius:8px;padding:10px 13px;font-size:11px;color:#d4aa70;line-height:1.7;margin-bottom:14px;}
+
+    /* 저장 토스트 */
+    .save-toast{display:none;font-size:12px;color:var(--ok);padding:6px 12px;background:rgba(76,175,137,.1);border-radius:6px;border:1px solid rgba(76,175,137,.2);}
+
+    /* 키 입력 */
+    .key-wrap{position:relative;}
+    .key-wrap input{padding-right:60px;}
+    .key-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:2px 7px;}
+
+    /* 대시보드 */
+    .dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:20px;}
+    .dash-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;}
+    .dash-card .dc-val{font-size:26px;font-weight:700;color:var(--accent3);margin-bottom:4px;}
+    .dash-card .dc-lbl{font-size:11px;color:var(--muted);}
+
+    /* DomoAI 생성 이미지 갤러리 */
+    .gen-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:16px;}
+    .gen-item{border-radius:10px;overflow:hidden;border:1px solid var(--border);position:relative;background:var(--surface2);}
+    .gen-item img,.gen-item video{width:100%;height:160px;object-fit:cover;display:block;}
+    .gen-item-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;}
+    .gen-item:hover .gen-item-overlay{opacity:1;}
+    .gen-item-overlay button{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;margin:3px;}
+    .gen-skeleton{min-height:160px;background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--muted);font-size:11px;}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+    /* 진행 바 */
+    .progress-wrap{background:var(--surface2);border-radius:6px;height:6px;overflow:hidden;margin-top:8px;}
+    .progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;transition:width .3s;}
+
+    .divider{height:1px;background:var(--border);margin:16px 0;}
+
+    ::-webkit-scrollbar{width:4px;}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+    @media(max-width:700px){.admin-nav{display:none;}.page{padding:16px;}.field-row{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+
+<!-- 로그인 -->
+<div id="loginWrap" class="login-wrap">
+  <div class="login-card">
+    <div style="font-size:36px;margin-bottom:12px;">⚙️</div>
+    <h1>관리자 로그인</h1>
+    <p>캐릭터 챗 관리자 패널입니다.<br>관리자만 접근할 수 있습니다.</p>
+    <input type="password" id="loginPw" placeholder="관리자 비밀번호" onkeydown="if(event.key==='Enter')doLogin()"/>
+    <div class="err" id="loginErr"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">🔑 로그인</button>
+  </div>
+</div>
+
+<!-- 관리자 앱 -->
+<div id="adminApp" class="admin-layout">
+
+  <!-- 사이드 네비 -->
+  <nav class="admin-nav">
+    <div class="nav-head">
+      <h1>⚙️ 관리자 패널</h1>
+      <p>캐릭터 챗 설정</p>
+    </div>
+    <div class="nav-items">
+      <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+        <span class="ni">📊</span><span>대시보드</span>
+      </div>
+      <div class="nav-divider"></div>
+      <div style="font-size:9px;color:var(--muted);padding:4px 10px;text-transform:uppercase;letter-spacing:1px;">캐릭터 설정</div>
+      <div class="nav-item" onclick="showPage('step1')" id="nav-step1">
+        <span class="ni">①</span><span>기본 정보</span>
+      </div>
+      <div class="nav-item" onclick="showPage('step2')" id="nav-step2">
+        <span class="ni">②</span><span>인트로 & 예시 대화</span>
+      </div>
+      <div class="nav-item" onclick="showPage('step3')" id="nav-step3">
+        <span class="ni">③</span><span>캐릭터 프롬프트</span>
+      </div>
+      <div class="nav-item" onclick="showPage('step4')" id="nav-step4">
+        <span class="ni">④</span><span>상황 이미지</span>
+      </div>
+      <div class="nav-item" onclick="showPage('step5')" id="nav-step5">
+        <span class="ni">⑤</span><span>캐릭터 상세</span>
+      </div>
+      <div class="nav-item" onclick="showPage('lore')" id="nav-lore">
+        <span class="ni">⑥</span><span>세계관 &amp; 스펙</span>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="nav-item" onclick="showPage('domoai')" id="nav-domoai">
+        <span class="ni">🎨</span><span>DomoAI 이미지 생성</span>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="nav-item" onclick="showPage('apikeys')" id="nav-apikeys">
+        <span class="ni">🔑</span><span>API 키 설정</span>
+      </div>
+    </div>
+    <div class="nav-foot">
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:6px" onclick="logout()">🚪 로그아웃</button>
+      <div style="font-size:9px;color:var(--muted);text-align:center;">
+        <a href="/" target="_blank" style="color:var(--accent2);text-decoration:none;">← 사용자 채팅 보기</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="admin-main">
+
+    <!-- 대시보드 -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-head">
+        <h2>📊 대시보드</h2>
+        <p>캐릭터 챗 서비스 현황</p>
+      </div>
+      <div class="dash-grid" id="dashGrid"></div>
+      <div class="card">
+        <div class="card-title">🔌 API 연결 상태</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;" id="apiStatusRow"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚡ 빠른 작업</div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="showPage('step1')">① 기본 정보</button>
+          <button class="btn btn-ghost" onclick="showPage('step3')">③ 프롬프트</button>
+          <button class="btn btn-ghost" onclick="showPage('step4')">④ 상황 이미지</button>
+          <button class="btn btn-ghost" onclick="showPage('domoai')">🎨 이미지 생성</button>
+          <button class="btn btn-danger btn-sm" onclick="resetSessions()">🔄 세션 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- [1단계] 기본 정보 -->
+    <div class="page" id="page-step1">
+      <div class="page-head">
+        <h2>① 기본 정보</h2>
+        <p>캐릭터의 프로필 이미지와 이름을 설정합니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">📸 프로필 이미지</div>
+        <div class="upload-box" onclick="document.getElementById('profileInput').click()" id="profileBox">
+          <input type="file" id="profileInput" accept="image/*" onchange="onProfileFile(this)"/>
+          <img id="profilePreview" class="preview"/>
+          <div id="profileHint"><div class="ub-icon">🖼️</div><div class="ub-hint">클릭하여 업로드 (JPG, PNG, GIF · 최대 20MB)</div></div>
+        </div>
+        <div class="divider"></div>
+        <div class="field">
+          <label>또는 이미지 URL</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="profileUrlInput" placeholder="https://..."/>
+            <button class="btn btn-ghost btn-sm" onclick="applyProfileUrl()">적용</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">👤 기본 정보</div>
+        <div class="field-row">
+          <div class="field">
+            <label>캐릭터 이름 *</label>
+            <input type="text" id="charName" placeholder="예: 도하준"/>
+          </div>
+          <div class="field">
+            <label>한 줄 소개</label>
+            <input type="text" id="charIntro" placeholder="예: 그림자 군단의 군주"/>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveBasic()">💾 저장</button>
+        <div class="save-toast" id="toast-step1">✅ 저장되었습니다</div>
+      </div>
+    </div>
+
+    <!-- [2단계] 인트로 -->
+    <div class="page" id="page-step2">
+      <div class="page-head">
+        <h2>② 인트로 & 예시 대화</h2>
+        <p>대화 시작 시 첫 메시지와 예시 대화를 설정합니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">💬 오프닝 메시지</div>
+        <div class="info-box">
+          <code>*나레이션*</code> 과 <code>"대사"</code> 형식으로 작성하면 자동으로 분리 표시됩니다.
+        </div>
+        <div class="field">
+          <textarea id="openingMsg" style="min-height:120px"></textarea>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">💡 예시 대화</div>
+        <div id="exDlgList"></div>
+        <button class="btn btn-ghost btn-sm" onclick="addExDialog()">＋ 추가</button>
+      </div>
+      <div class="card">
+        <div class="card-title">📋 플레이 가이드 <span style="font-size:10px;color:var(--muted);font-weight:400">(사용자에게만 표시)</span></div>
+        <div class="field">
+          <textarea id="playGuide" style="min-height:60px" placeholder="예: 반말로 편하게 말을 걸어보세요."></textarea>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveIntro()">💾 저장</button>
+        <div class="save-toast" id="toast-step2">✅ 저장되었습니다</div>
+      </div>
+    </div>
+
+    <!-- [3단계] 프롬프트 -->
+    <div class="page" id="page-step3">
+      <div class="page-head">
+        <h2>③ 캐릭터 프롬프트</h2>
+        <p>Claude AI에게 전달되는 시스템 프롬프트입니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">🧠 시스템 프롬프트</div>
+        <div class="info-box">
+          <code>{{USER_NAME}}</code> 을 포함하면 사용자가 설정한 호칭으로 자동 치환됩니다.<br>
+          📌 응답 형식: <code>*나레이션*</code>(행동 묘사) + <code>"대사"</code>(대화) 형식 권장<br>
+          📌 상황 이미지를 추가하면 트리거 감지 규칙이 자동 추가됩니다.
+        </div>
+        <div class="field">
+          <textarea id="charPrompt" style="min-height:360px;font-size:12px;font-family:monospace;"></textarea>
+        </div>
+        <div style="font-size:10px;color:var(--muted);text-align:right;" id="promptLen">0자</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="savePrompt()">💾 저장</button>
+        <div class="save-toast" id="toast-step3">✅ 저장되었습니다</div>
+      </div>
+    </div>
+
+    <!-- [4단계] 상황 이미지 -->
+    <div class="page" id="page-step4">
+      <div class="page-head">
+        <h2>④ 상황 이미지 라이브러리</h2>
+        <p>특정 상황이 감지되면 자동으로 표시될 이미지를 등록합니다.</p>
+      </div>
+      <div class="info-box">
+        📌 <b>동작 원리:</b> Claude 응답에 <b>트리거 키워드</b>가 포함되면 등록된 이미지가 대화창에 자동 표시됩니다.<br>
+        📌 <b>DomoAI 연동:</b> [🎨 DomoAI 이미지 생성] 메뉴에서 캐릭터 추가 이미지를 생성한 후 여기에 등록할 수 있습니다.
+      </div>
+      <div id="siList"></div>
+      <div class="card">
+        <div class="card-title">➕ 새 상황 이미지 추가</div>
+        <div class="field-row">
+          <div class="field">
+            <label>트리거 키워드 *</label>
+            <input type="text" id="siTrigger" placeholder="예: 웃, 미소, 눈물, 화남"/>
+          </div>
+          <div class="field">
+            <label>상황 설명</label>
+            <input type="text" id="siDesc" placeholder="예: 미소 짓는 표정"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>이미지 업로드 또는 URL</label>
+          <div class="upload-box" onclick="document.getElementById('siImgInput').click()" id="siUploadBox">
+            <input type="file" id="siImgInput" accept="image/*" onchange="onSiFile(this)"/>
+            <img id="siPreview" class="preview"/>
+            <div id="siHint"><div class="ub-icon">🖼️</div><div class="ub-hint">클릭하여 이미지 업로드</div></div>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:8px;">
+            <input type="text" id="siImgUrl" placeholder="또는 이미지 URL 입력" style="flex:1"/>
+            <button class="btn btn-ghost btn-sm" onclick="applySiUrl()">URL 적용</button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="addSituationImage()">➕ 추가</button>
+          <div class="save-toast" id="toast-step4">✅ 추가되었습니다</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- [5단계] 캐릭터 상세 -->
+    <div class="page" id="page-step5">
+      <div class="page-head">
+        <h2>⑤ 캐릭터 상세</h2>
+        <p>캐릭터 배경, 장르, 해시태그를 설정합니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">📖 상세 설명</div>
+        <div class="field">
+          <textarea id="charDetail" style="min-height:140px" placeholder="캐릭터의 과거, 세계관, 배경 이야기..."></textarea>
+          <div style="font-size:10px;color:var(--muted);text-align:right;margin-top:3px;" id="detailLen">0 / 1000자</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🏷️ 분류 & 해시태그</div>
+        <div class="field">
+          <label>장르</label>
+          <select id="genreSelect">
+            <option value="romance">로맨스</option>
+            <option value="fantasy">판타지</option>
+            <option value="action">액션</option>
+            <option value="daily">일상</option>
+            <option value="thriller">스릴러</option>
+            <option value="sf">SF</option>
+            <option value="historical">역사</option>
+            <option value="secondary">2차 창작</option>
+            <option value="etc">기타</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>해시태그 (Enter 또는 쉼표로 추가)</label>
+          <div class="tag-wrap" id="tagWrap" onclick="document.getElementById('tagInput').focus()">
+            <input type="text" class="tag-input" id="tagInput" placeholder="태그 입력 후 Enter..." onkeydown="onTagKey(event)"/>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveDetail()">💾 저장</button>
+        <div class="save-toast" id="toast-step5">✅ 저장되었습니다</div>
+      </div>
+    </div>
+
+    <!-- [6단계] 세계관 & 스펙 (랜딩 페이지 표시) -->
+    <div class="page" id="page-lore">
+      <div class="page-head">
+        <h2>⑥ 세계관 &amp; 캐릭터 스펙</h2>
+        <p>랜딩 페이지 하단에 표시되는 세계관 설명과 캐릭터 스펙을 관리합니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">🌍 세계관 설명</div>
+        <div class="info-box" style="margin-bottom:12px;">
+          랜딩 페이지에서 캐릭터 이미지 하단에 표시됩니다. 세계관, 배경 스토리, 캐릭터가 속한 세계를 설명하세요.
+        </div>
+        <div class="field">
+          <textarea id="loreText" style="min-height:160px" placeholder="예: 《나 혼자만 레벨업》의 세계관 — 헌터들이 실존하는 현대 한국..."></textarea>
+          <div style="font-size:10px;color:var(--muted);text-align:right;margin-top:3px;" id="loreLen">0 / 1500자</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📊 캐릭터 스펙 (랜딩 정보 카드)</div>
+        <div class="info-box" style="margin-bottom:12px;">
+          최대 6개 스펙을 입력하세요. 각 항목은 <b>레이블 : 값</b> 형식으로 랜딩 페이지에 표시됩니다.
+        </div>
+        <div id="specsContainer">
+          <!-- JS로 렌더링 -->
+        </div>
+        <button class="btn btn-ghost" onclick="addSpecRow()" style="margin-top:6px;">+ 스펙 추가</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveLore()">💾 저장</button>
+        <div class="save-toast" id="toast-lore">✅ 저장되었습니다</div>
+      </div>
+    </div>
+
+    <!-- ★★★ DomoAI 이미지 생성 (핵심) ★★★ -->
+    <div class="page" id="page-domoai">      <div class="page-head">
+        <h2>🎨 DomoAI 이미지 생성</h2>
+        <p>캐릭터의 추가 이미지를 DomoAI로 생성합니다. 생성된 이미지는 상황 이미지 라이브러리에 등록할 수 있습니다.</p>
+      </div>
+
+      <div class="warn-box">
+        ⚠️ DomoAI는 <b>비디오 생성 API</b>입니다. 짧은 애니메이션 클립을 생성하며, 캐릭터의 동적 표현 이미지로 활용합니다.<br>
+        DomoAI API 크레딧이 필요합니다. 크레딧 부족 시 생성이 실패할 수 있습니다.
+      </div>
+
+      <!-- 이미지 생성 프롬프트 설정 -->
+      <div class="card">
+        <div class="card-title">✏️ 생성 프롬프트 설정</div>
+        <div class="info-box">
+          캐릭터 외형, 감정 상태, 배경 등을 영어로 상세히 작성하면 더 정확한 이미지가 생성됩니다.<br>
+          <code>{{CHARACTER_NAME}}</code> 은 캐릭터 이름으로 자동 치환됩니다.
+        </div>
+        <div class="field">
+          <label>기본 생성 프롬프트</label>
+          <textarea id="domoPromptBase" style="min-height:80px;font-size:12px;font-family:monospace;" placeholder="anime male character, tall dark haired man, cold expression, hunter outfit, dramatic lighting, high quality illustration"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" onclick="saveDomoSettings()">💾 기본값 저장</button>
+          <div class="save-toast" id="toast-domo-settings">✅ 저장됨</div>
+        </div>
+      </div>
+
+      <!-- 개별 생성 -->
+      <div class="card">
+        <div class="card-title">🖼️ 단일 이미지 생성</div>
+        <div class="field">
+          <label>상황 프롬프트 (기본 프롬프트에 추가)</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="domoSinglePrompt" placeholder="예: smiling gently, soft lighting, close-up portrait" style="flex:1"/>
+            <button class="btn btn-primary" id="domoSingleBtn" onclick="generateSingleImage()">🎨 생성</button>
+          </div>
+        </div>
+        <div id="domoSingleResult"></div>
+      </div>
+
+      <!-- 일괄 생성 -->
+      <div class="card">
+        <div class="card-title">📦 다중 이미지 일괄 생성</div>
+        <div class="info-box">
+          여러 감정/상황 이미지를 한 번에 생성합니다. 각 행에 프롬프트를 하나씩 입력하세요.
+        </div>
+        <div class="field">
+          <label>프롬프트 목록 (줄당 하나)</label>
+          <textarea id="domoBatchPrompts" style="min-height:140px;font-size:12px;font-family:monospace;" placeholder="smiling gently, soft lighting&#10;looking away coldly, side profile&#10;reaching out hand, protective expression&#10;eyes closed, calm breathing&#10;surprised expression, slight blush"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>생성 수 (최대 5개)</label>
+            <select id="domoBatchCount">
+              <option value="1">1개</option>
+              <option value="2">2개</option>
+              <option value="3" selected>3개</option>
+              <option value="4">4개</option>
+              <option value="5">5개</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="domoBatchBtn" onclick="generateBatchImages()">🎨 일괄 생성</button>
+          <div class="save-toast" id="toast-batch">✅ 생성 완료</div>
+        </div>
+        <div id="domoBatchProgress" style="display:none;margin-top:12px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;" id="domoBatchStatus">생성 중...</div>
+          <div class="progress-wrap"><div class="progress-bar" id="domoBatchBar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- 생성된 이미지 갤러리 -->
+      <div class="card" id="domoGalleryCard" style="display:none;">
+        <div class="card-title">🖼️ 생성된 이미지</div>
+        <div class="info-box">생성된 이미지를 클릭하면 [상황 이미지]로 등록할 수 있습니다.</div>
+        <div class="gen-gallery" id="domoGallery"></div>
+      </div>
+
+      <!-- 기존 상황 이미지 → DomoAI 애니메이션 변환 -->
+      <div class="card">
+        <div class="card-title">🎬 기존 이미지 → DomoAI 애니메이션 변환</div>
+        <div class="info-box">
+          [상황 이미지 라이브러리]에 등록된 이미지를 DomoAI <b>image2video</b>로 애니메이션 클립으로 변환합니다.<br>
+          생성된 애니메이션은 대화 중 해당 상황이 감지될 때 자동 재생됩니다.
+        </div>
+        <div id="siForAnimList">
+          <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;">
+            상황 이미지를 먼저 [④ 상황 이미지]에서 등록하세요.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API 키 설정 -->
+    <div class="page" id="page-apikeys">
+      <div class="page-head">
+        <h2>🔑 API 키 설정</h2>
+        <p>Claude(대화 AI)와 DomoAI(이미지 생성) API 키를 설정합니다.</p>
+      </div>
+      <div class="info-box">
+        ✅ API 키는 <code>data/character.json</code>에 저장되어 서버 재시작 후에도 유지됩니다.<br>
+        더 안전하게 관리하려면 서버의 <code>.env</code> 파일에 <code>CLAUDE_API_KEY</code>를 설정하세요.
+      </div>
+      <div class="card">
+        <div class="card-title">🤖 Claude API 키</div>
+        <div class="field">
+          <label>Anthropic Console →
+            <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent2)">console.anthropic.com</a>
+          </label>
+          <div class="key-wrap">
+            <input type="password" id="claudeKeyIn" placeholder="sk-ant-api03-..." autocomplete="off"/>
+            <span class="key-eye" onclick="toggleEye('claudeKeyIn')">보기</span>
+          </div>
+        </div>
+        <div id="claudeKeyStatus" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🎨 DomoAI API 키</div>
+        <div class="field">
+          <label>DomoAI Enterprise →
+            <a href="https://platform.domoai.com/api-keys" target="_blank" style="color:var(--accent2)">platform.domoai.com</a>
+          </label>
+          <div class="key-wrap">
+            <input type="password" id="domoKeyIn" placeholder="sk-..." autocomplete="off"/>
+            <span class="key-eye" onclick="toggleEye('domoKeyIn')">보기</span>
+          </div>
+        </div>
+        <div class="info-box" style="font-size:11px;">
+          DomoAI API를 통해 캐릭터의 추가 이미지와 애니메이션 클립을 생성합니다.<br>
+          설정 후 [🎨 DomoAI 이미지 생성] 메뉴에서 이미지를 생성할 수 있습니다.
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveApiKeys()">🔑 키 적용</button>
+        <div class="save-toast" id="toast-apikeys">✅ 적용되었습니다</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+let adminToken = localStorage.getItem('adminToken') || '';
+let currentPage = 'dashboard';
+let profileBase64 = null;
+let siBase64 = null;
+let siPreviewUrl = null;
+let exDialogues = [];
+let hashtags = [];
+let situationImages = [];
+let generatedImages = []; // DomoAI로 생성된 이미지 목록
+
+// ── 로그인 ─────────────────────────────────────────────
+async function doLogin() {
+  const pw = document.getElementById('loginPw').value;
+  document.getElementById('loginErr').textContent = '';
+  try {
+    const res  = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('loginErr').textContent = data.error || '로그인 실패'; return; }
+    adminToken = data.token;
+    localStorage.setItem('adminToken', adminToken);
+    initAdmin();
+  } catch(e) {
+    document.getElementById('loginErr').textContent = '서버 연결 오류: ' + e.message;
+  }
+}
+
+function logout() {
+  adminToken = '';
+  localStorage.removeItem('adminToken');
+  document.getElementById('adminApp').style.display = 'none';
+  document.getElementById('loginWrap').style.display = 'flex';
+}
+
+async function initAdmin() {
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('adminApp').style.display  = 'flex';
+  await loadCharConfig();
+  await loadDashboard();
+}
+
+async function apiCall(path, method = 'GET', body = null, isForm = false) {
+  const opts = { method, headers: { 'Authorization': `Bearer ${adminToken}` } };
+  if (body) {
+    if (isForm) opts.body = body;
+    else { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  }
+  const res = await fetch(path, opts);
+  if (res.status === 401) { logout(); throw new Error('인증 만료'); }
+  return res.json();
+}
+
+// ── 캐릭터 설정 로드 ───────────────────────────────────
+async function loadCharConfig() {
+  try {
+    const d = await apiCall('/api/admin/character');
+
+    document.getElementById('charName').value     = d.name             || '';
+    document.getElementById('charIntro').value    = d.intro            || '';
+    document.getElementById('openingMsg').value   = d.openingMessage   || '';
+    document.getElementById('playGuide').value    = d.playGuide        || '';
+    document.getElementById('charPrompt').value   = d.characterPrompt  || '';
+    document.getElementById('charDetail').value   = d.characterDetail  || '';
+    document.getElementById('genreSelect').value  = d.genre            || 'fantasy';
+    document.getElementById('domoPromptBase').value = d.domoImagePrompt || '';
+
+    // lore & specs 로드
+    document.getElementById('loreText').value = d.lore || '';
+    updateLoreLen();
+    currentSpecs = d.specs || [];
+    renderSpecs();
+
+    updatePromptLen();
+    updateDetailLen();
+    exDialogues = d.exampleDialogues || [];
+    renderExDialogues();
+    hashtags = d.hashtags || [];
+    renderTags();
+    situationImages = d.situationImages || [];
+    renderSiList();
+    renderSiForAnim();
+
+    if (d.profileImageUrl) showProfilePreview(d.profileImageUrl);
+    else if (d.profileImageBase64 === '[설정됨]') {
+      document.getElementById('profileHint').innerHTML = '<div class="ub-icon">✅</div><div class="ub-hint">프로필 이미지 설정됨</div>';
+    }
+  } catch(e) { console.error('설정 로드 오류:', e); }
+}
+
+// ── 대시보드 ────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const d   = await fetch('/api/status').then(r => r.json());
+    const cfg = await apiCall('/api/admin/character');
+    document.getElementById('dashGrid').innerHTML = `
+      <div class="dash-card"><div class="dc-val">${esc(cfg.name||'-')}</div><div class="dc-lbl">캐릭터</div></div>
+      <div class="dash-card"><div class="dc-val">${d.sessionsActive}</div><div class="dc-lbl">활성 세션</div></div>
+      <div class="dash-card"><div class="dc-val">${cfg.situationImages?.length||0}</div><div class="dc-lbl">상황 이미지</div></div>
+      <div class="dash-card"><div class="dc-val">${d.guestTokenLimit||10}</div><div class="dc-lbl">게스트 토큰</div></div>
+      <div class="dash-card"><div class="dc-val">${d.memberTokenLimit||100}</div><div class="dc-lbl">회원 토큰</div></div>
+      <div class="dash-card"><div class="dc-val">${d.systemPromptLen}</div><div class="dc-lbl">프롬프트 길이</div></div>`;
+    document.getElementById('apiStatusRow').innerHTML = `
+      <span class="badge ${d.claude.connected?'ok':'warn'}"><span class="dot"></span>Claude ${d.claude.connected?'✓ 연결됨':'✗ 미설정'}</span>
+      <span class="badge ${d.domoai.connected?'ok':'warn'}"><span class="dot"></span>DomoAI ${d.domoai.connected?'✓ 연결됨':'✗ 미설정'}</span>`;
+  } catch(e) {}
+}
+
+// ── 페이지 전환 ─────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('page-'+name)?.classList.add('active');
+  document.getElementById('nav-'+name)?.classList.add('active');
+  currentPage = name;
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'domoai') renderSiForAnim();
+}
+
+// ── 저장 함수들 ─────────────────────────────────────────
+async function saveBasic() {
+  const fd = new FormData();
+  fd.append('name',  document.getElementById('charName').value);
+  fd.append('intro', document.getElementById('charIntro').value);
+  if (profileBase64) fd.append('profileImage', b64ToBlob(profileBase64), 'profile.jpg');
+  else { const u = document.getElementById('profileUrlInput').value.trim(); if (u) fd.append('profileImageUrl', u); }
+  await apiCall('/api/admin/character/basic', 'POST', fd, true);
+  showToast('toast-step1');
+}
+
+async function saveIntro() {
+  await apiCall('/api/admin/character/intro', 'POST', {
+    openingMessage:   document.getElementById('openingMsg').value,
+    exampleDialogues: exDialogues,
+    playGuide:        document.getElementById('playGuide').value,
+  });
+  showToast('toast-step2');
+}
+
+async function savePrompt() {
+  await apiCall('/api/admin/character/prompt', 'POST', {
+    characterPrompt: document.getElementById('charPrompt').value,
+  });
+  showToast('toast-step3');
+}
+
+async function saveDetail() {
+  const detail = document.getElementById('charDetail').value;
+  if (detail.length > 1000) { alert('상세 설명은 최대 1000자입니다.'); return; }
+  await apiCall('/api/admin/character/detail', 'POST', {
+    characterDetail: detail,
+    genre:           document.getElementById('genreSelect').value,
+    hashtags,
+    domoImagePrompt: document.getElementById('domoPromptBase').value,
+  });
+  showToast('toast-step5');
+}
+
+// ── 세계관 & 스펙 ────────────────────────────────────────
+let currentSpecs = [];
+
+function renderSpecs() {
+  const container = document.getElementById('specsContainer');
+  if (!container) return;
+  container.innerHTML = currentSpecs.map((sp, i) => `
+    <div class="spec-row" id="spec-row-${i}" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+      <input type="text" placeholder="레이블 (예: 등급)" value="${esc(sp.label||'')}"
+        style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;outline:none;"
+        oninput="updateSpec(${i},'label',this.value)"/>
+      <input type="text" placeholder="값 (예: S급)" value="${esc(sp.value||'')}"
+        style="flex:2;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;outline:none;"
+        oninput="updateSpec(${i},'value',this.value)"/>
+      <button onclick="removeSpec(${i})" style="background:rgba(224,80,80,.15);border:1px solid rgba(224,80,80,.3);color:var(--err);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:12px;">✕</button>
+    </div>`).join('');
+}
+
+function updateSpec(i, key, val) {
+  if (currentSpecs[i]) currentSpecs[i][key] = val;
+}
+function removeSpec(i) {
+  currentSpecs.splice(i, 1);
+  renderSpecs();
+}
+function addSpecRow() {
+  if (currentSpecs.length >= 6) { alert('스펙은 최대 6개까지 추가할 수 있습니다.'); return; }
+  currentSpecs.push({ label: '', value: '' });
+  renderSpecs();
+}
+
+function updateLoreLen() {
+  const el = document.getElementById('loreText');
+  const len = document.getElementById('loreLen');
+  if (el && len) {
+    len.textContent = el.value.length + ' / 1500자';
+    len.style.color = el.value.length > 1500 ? 'var(--err)' : 'var(--muted)';
+  }
+}
+
+async function saveLore() {
+  const lore = document.getElementById('loreText').value;
+  if (lore.length > 1500) { alert('세계관 설명은 최대 1500자입니다.'); return; }
+  // currentSpecs에서 현재 input 값 동기화
+  document.querySelectorAll('[id^="spec-row-"]').forEach((row, i) => {
+    const inputs = row.querySelectorAll('input');
+    if (currentSpecs[i]) {
+      currentSpecs[i].label = inputs[0]?.value || '';
+      currentSpecs[i].value = inputs[1]?.value || '';
+    }
+  });
+  const cleanSpecs = currentSpecs.filter(s => s.label && s.value);
+  await apiCall('/api/admin/character/lore', 'POST', { lore, specs: cleanSpecs });
+  currentSpecs = cleanSpecs;
+  renderSpecs();
+  showToast('toast-lore');
+}
+
+async function saveDomoSettings() {
+  await apiCall('/api/admin/character/detail', 'POST', {
+    domoImagePrompt: document.getElementById('domoPromptBase').value,
+  });
+  showToast('toast-domo-settings');
+}
+
+async function saveApiKeys() {
+  const ck = document.getElementById('claudeKeyIn').value.trim();
+  const dk = document.getElementById('domoKeyIn').value.trim();
+  await apiCall('/api/admin/keys', 'POST', {
+    claudeApiKey: ck || undefined,
+    domoaiApiKey: dk || undefined,
+  });
+  showToast('toast-apikeys');
+  loadDashboard();
+}
+
+async function resetSessions() {
+  if (!confirm('모든 사용자 대화 세션을 초기화할까요?')) return;
+  await apiCall('/api/admin/reset-sessions', 'POST');
+  alert('세션이 초기화되었습니다.');
+  loadDashboard();
+}
+
+// ═══════════════════════════════════════════════════════
+//  🎨 DomoAI 이미지 생성
+// ═══════════════════════════════════════════════════════
+
+// 단일 이미지 생성
+async function generateSingleImage() {
+  const basePrompt   = document.getElementById('domoPromptBase').value.trim();
+  const extraPrompt  = document.getElementById('domoSinglePrompt').value.trim();
+  const finalPrompt  = [basePrompt, extraPrompt].filter(Boolean).join(', ');
+
+  const btn = document.getElementById('domoSingleBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 생성 중...';
+
+  const resultEl = document.getElementById('domoSingleResult');
+  resultEl.innerHTML = `<div class="gen-skeleton">⏳ DomoAI 생성 중...<br><small>최대 3분 소요됩니다</small></div>`;
+
+  try {
+    const res  = await apiCall('/api/admin/generate-images', 'POST', {
+      prompt: finalPrompt,
+      count:  1,
+    });
+
+    if (!res.success) throw new Error(res.error || '생성 실패');
+
+    const item = res.results[0];
+    if (item.success && item.url) {
+      const isVideo = item.url.endsWith('.mp4') || item.url.includes('video');
+      resultEl.innerHTML = `
+        <div class="gen-item" style="max-width:300px;margin-top:12px;">
+          ${isVideo
+            ? `<video src="${item.url}" autoplay loop muted playsinline style="width:100%;height:220px;object-fit:cover;"></video>`
+            : `<img src="${item.url}" style="width:100%;height:220px;object-fit:cover;"/>`}
+          <div class="gen-item-overlay">
+            <button onclick="addToSituationLib('${item.url}', '${esc(extraPrompt)}')">📚 상황 이미지 등록</button>
+          </div>
+          <div style="padding:8px;font-size:11px;color:var(--muted);">${esc(extraPrompt || basePrompt)}</div>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <a href="${item.url}" target="_blank" class="btn btn-ghost btn-sm">🔗 원본 열기</a>
+          <button class="btn btn-success btn-sm" onclick="addToSituationLib('${item.url}', '${esc(extraPrompt)}')">📚 상황 이미지로 등록</button>
+        </div>`;
+      generatedImages.push({ url: item.url, prompt: finalPrompt });
+    } else {
+      resultEl.innerHTML = `<div class="warn-box">⚠️ 생성 실패: ${item.error || 'DomoAI 응답 없음'}<br>크레딧이 부족하거나 API 오류일 수 있습니다.</div>`;
+    }
+  } catch(e) {
+    resultEl.innerHTML = `<div class="warn-box">⚠️ 오류: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🎨 생성';
+  }
+}
+
+// 일괄 생성
+async function generateBatchImages() {
+  const basePrompt  = document.getElementById('domoPromptBase').value.trim();
+  const rawLines    = document.getElementById('domoBatchPrompts').value.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  const count       = parseInt(document.getElementById('domoBatchCount').value) || 3;
+
+  if (!rawLines.length) { alert('프롬프트를 입력해 주세요.'); return; }
+
+  const prompts = rawLines.slice(0, count).map(l => [basePrompt, l].filter(Boolean).join(', '));
+
+  const btn = document.getElementById('domoBatchBtn');
+  btn.disabled = true;
+  const progressEl = document.getElementById('domoBatchProgress');
+  const statusEl   = document.getElementById('domoBatchStatus');
+  const barEl      = document.getElementById('domoBatchBar');
+  progressEl.style.display = 'block';
+  barEl.style.width = '0%';
+
+  // 갤러리 초기화
+  const gallery = document.getElementById('domoGallery');
+  document.getElementById('domoGalleryCard').style.display = 'block';
+  gallery.innerHTML = prompts.map((_, i) =>
+    `<div class="gen-skeleton" id="gen-skeleton-${i}">⏳ 생성 중...<br><small>${i+1}/${prompts.length}</small></div>`
+  ).join('');
+
+  let done = 0;
+  const results = [];
+
+  // 순차 생성 (병렬은 크레딧 소모 큼)
+  for (let i = 0; i < prompts.length; i++) {
+    statusEl.textContent = `${i+1}/${prompts.length} 생성 중: "${prompts[i].substring(0,40)}..."`;
+    try {
+      const res = await apiCall('/api/admin/generate-images', 'POST', { prompt: prompts[i], count: 1 });
+      const item = res.results?.[0];
+      const url  = item?.success ? item.url : null;
+
+      const skeletonEl = document.getElementById(`gen-skeleton-${i}`);
+      if (url) {
+        const isVideo = url.endsWith('.mp4') || url.includes('video');
+        const newEl = document.createElement('div');
+        newEl.className = 'gen-item';
+        newEl.innerHTML = `
+          ${isVideo
+            ? `<video src="${url}" autoplay loop muted playsinline></video>`
+            : `<img src="${url}" onerror="this.style.display='none'"/>`}
+          <div class="gen-item-overlay">
+            <button onclick="addToSituationLib('${url}', '${esc(rawLines[i]||'')}')">📚 등록</button>
+            <a href="${url}" target="_blank"><button>🔗 열기</button></a>
+          </div>`;
+        skeletonEl?.replaceWith(newEl);
+        generatedImages.push({ url, prompt: prompts[i] });
+        results.push({ success: true, url, prompt: prompts[i] });
+      } else {
+        const errEl = document.createElement('div');
+        errEl.style.cssText = 'background:rgba(224,80,80,.1);border:1px solid rgba(224,80,80,.3);border-radius:10px;padding:14px;text-align:center;font-size:11px;color:var(--err);';
+        errEl.textContent = '⚠️ 생성 실패';
+        skeletonEl?.replaceWith(errEl);
+        results.push({ success: false, prompt: prompts[i] });
+      }
+    } catch(e) {
+      results.push({ success: false, error: e.message });
+    }
+    done++;
+    barEl.style.width = `${(done / prompts.length) * 100}%`;
+  }
+
+  statusEl.textContent = `✅ 완료: ${results.filter(r=>r.success).length}/${prompts.length}개 생성됨`;
+  btn.disabled = false;
+  showToast('toast-batch');
+}
+
+// 생성된 이미지 → 상황 이미지 라이브러리 등록
+async function addToSituationLib(url, desc) {
+  const trigger = prompt('트리거 키워드를 입력하세요:', desc?.split(',')[0] || '') || '';
+  if (!trigger) return;
+  const description = prompt('상황 설명:', desc || '') || '';
+
+  const fd = new FormData();
+  fd.append('trigger',     trigger);
+  fd.append('description', description);
+  fd.append('imageUrl',    url);
+
+  const res = await apiCall('/api/admin/character/situation', 'POST', fd, true);
+  if (res.success) {
+    situationImages.push({ id: res.id, trigger, description, imageUrl: url, imageBase64: null });
+    renderSiList();
+    renderSiForAnim();
+    alert('✅ 상황 이미지로 등록되었습니다!');
+  }
+}
+
+// 상황 이미지 → DomoAI 애니메이션 변환 목록
+function renderSiForAnim() {
+  const container = document.getElementById('siForAnimList');
+  if (!situationImages.length) {
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;">상황 이미지를 먼저 [④ 상황 이미지]에서 등록하세요.</div>';
+    return;
+  }
+  container.innerHTML = situationImages.map(si => `
+    <div class="si-card" style="margin-bottom:12px;">
+      ${(si.imageUrl||si.imageBase64)
+        ? `<img class="si-img" src="${si.imageUrl||`data:image/jpeg;base64,${si.imageBase64}`}" alt="${esc(si.description)}"/>`
+        : `<div class="si-img-placeholder">🖼️</div>`}
+      <div class="si-body">
+        <div class="si-trigger">🏷️ "${esc(si.trigger)}"</div>
+        <div class="si-desc" style="margin-bottom:8px;">${esc(si.description)||'(설명 없음)'}</div>
+        <button class="btn btn-ghost btn-sm" onclick="animateSiImage('${si.id}', '${esc(si.trigger)}')">
+          🎬 DomoAI 애니메이션 변환
+        </button>
+        <div id="anim-result-${si.id}" style="margin-top:8px;"></div>
+      </div>
+    </div>`).join('');
+}
+
+async function animateSiImage(siId, trigger) {
+  const resultEl = document.getElementById(`anim-result-${siId}`);
+  resultEl.innerHTML = '<div style="font-size:11px;color:var(--muted);">⏳ DomoAI 변환 중... (최대 3분)</div>';
+
+  try {
+    const res = await apiCall('/api/generate-media', 'POST', {
+      imageId: siId,
+      prompt: `${trigger}, anime character, smooth motion, cinematic`,
+    });
+    if (res.success && res.videoUrl) {
+      resultEl.innerHTML = `
+        <video src="${res.videoUrl}" autoplay loop muted playsinline style="max-width:200px;border-radius:8px;"></video>
+        <div style="font-size:10px;color:var(--ok);margin-top:4px;">✅ 변환 완료</div>
+        <a href="${res.videoUrl}" target="_blank" style="font-size:10px;color:var(--accent2);">원본 열기</a>`;
+    } else {
+      resultEl.innerHTML = `<div style="font-size:11px;color:var(--warn);">⚠️ 변환 실패: ${res.message || res.error || 'DomoAI 오류'}</div>`;
+    }
+  } catch(e) {
+    resultEl.innerHTML = `<div style="font-size:11px;color:var(--err);">오류: ${e.message}</div>`;
+  }
+}
+
+// ── 상황 이미지 CRUD ────────────────────────────────────
+async function addSituationImage() {
+  const fd = new FormData();
+  fd.append('trigger',     document.getElementById('siTrigger').value);
+  fd.append('description', document.getElementById('siDesc').value);
+  if (siBase64)       fd.append('image',    b64ToBlob(siBase64), 'situation.jpg');
+  else if (siPreviewUrl) fd.append('imageUrl', siPreviewUrl);
+
+  const result = await apiCall('/api/admin/character/situation', 'POST', fd, true);
+  if (result.success) {
+    situationImages.push({ id: result.id, trigger: document.getElementById('siTrigger').value,
+      description: document.getElementById('siDesc').value, imageBase64: null, imageUrl: siPreviewUrl });
+    renderSiList();
+    renderSiForAnim();
+    document.getElementById('siTrigger').value = '';
+    document.getElementById('siDesc').value    = '';
+    siBase64 = null; siPreviewUrl = null;
+    document.getElementById('siPreview').style.display = 'none';
+    document.getElementById('siHint').style.display    = 'block';
+    showToast('toast-step4');
+  }
+}
+
+async function deleteSi(id) {
+  if (!confirm('이 상황 이미지를 삭제할까요?')) return;
+  await apiCall(`/api/admin/character/situation/${id}`, 'DELETE');
+  situationImages = situationImages.filter(i => i.id !== id);
+  renderSiList();
+  renderSiForAnim();
+}
+
+function renderSiList() {
+  const container = document.getElementById('siList');
+  if (!situationImages.length) {
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;">등록된 상황 이미지가 없습니다.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  situationImages.forEach(si => {
+    const el = document.createElement('div');
+    el.className = 'card si-card';
+    const imgHtml = (si.imageUrl||si.imageBase64)
+      ? `<img class="si-img" src="${si.imageUrl||`data:image/jpeg;base64,${si.imageBase64}`}" alt="${esc(si.description)}"/>`
+      : `<div class="si-img-placeholder">🖼️</div>`;
+    el.innerHTML = `
+      ${imgHtml}
+      <div class="si-body">
+        <div class="si-trigger">🏷️ 트리거: "${esc(si.trigger)}"</div>
+        <div class="si-desc">${esc(si.description)||'(설명 없음)'}</div>
+        <div style="margin-top:8px;"><button class="btn btn-danger btn-sm" onclick="deleteSi('${si.id}')">삭제</button></div>
+      </div>`;
+    container.appendChild(el);
+  });
+}
+
+// ── 예시 대화 ────────────────────────────────────────────
+function renderExDialogues() {
+  const container = document.getElementById('exDlgList');
+  container.innerHTML = '';
+  exDialogues.forEach((dlg, i) => {
+    const el = document.createElement('div');
+    el.className = 'ex-dlg';
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:11px;color:var(--accent2);font-weight:600;">예시 ${i+1}</span>
+        <button class="btn btn-danger btn-sm" onclick="removeExDlg(${i})">삭제</button>
+      </div>
+      <div class="ex-label">사용자</div>
+      <input type="text" value="${esc(dlg.user)}" onchange="exDialogues[${i}].user=this.value" style="margin-bottom:6px"/>
+      <div class="ex-label" style="margin-top:6px">캐릭터</div>
+      <textarea onchange="exDialogues[${i}].char=this.value" style="min-height:60px">${esc(dlg.char)}</textarea>`;
+    container.appendChild(el);
+  });
+}
+
+function addExDialog() { exDialogues.push({ user: '', char: '' }); renderExDialogues(); }
+function removeExDlg(i) { exDialogues.splice(i, 1); renderExDialogues(); }
+
+// ── 태그 ─────────────────────────────────────────────────
+function renderTags() {
+  const wrap  = document.getElementById('tagWrap');
+  const input = document.getElementById('tagInput');
+  wrap.querySelectorAll('.tag').forEach(t => t.remove());
+  hashtags.forEach((tag, i) => {
+    const t = document.createElement('span');
+    t.className = 'tag';
+    t.innerHTML = `#${esc(tag)} <button onclick="removeTag(${i})">✕</button>`;
+    wrap.insertBefore(t, input);
+  });
+}
+
+function onTagKey(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/^#/,'');
+    if (val && !hashtags.includes(val)) { hashtags.push(val); renderTags(); }
+    e.target.value = '';
+  } else if (e.key === 'Backspace' && !e.target.value && hashtags.length) {
+    hashtags.pop(); renderTags();
+  }
+}
+function removeTag(i) { hashtags.splice(i, 1); renderTags(); }
+
+// ── 이미지 처리 ──────────────────────────────────────────
+function onProfileFile(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { profileBase64 = e.target.result.split(',')[1]; showProfilePreview(e.target.result); };
+  reader.readAsDataURL(file);
+}
+function applyProfileUrl() {
+  const url = document.getElementById('profileUrlInput').value.trim();
+  if (url) { profileBase64 = null; showProfilePreview(url); }
+}
+function showProfilePreview(src) {
+  const p = document.getElementById('profilePreview');
+  p.src = src; p.style.display = 'block';
+  document.getElementById('profileHint').style.display = 'none';
+}
+function onSiFile(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { siBase64 = e.target.result.split(',')[1]; siPreviewUrl = null; showSiPreview(e.target.result); };
+  reader.readAsDataURL(file);
+}
+function applySiUrl() {
+  const url = document.getElementById('siImgUrl').value.trim();
+  if (url) { siBase64 = null; siPreviewUrl = url; showSiPreview(url); }
+}
+function showSiPreview(src) {
+  const p = document.getElementById('siPreview');
+  p.src = src; p.style.display = 'block';
+  document.getElementById('siHint').style.display = 'none';
+}
+
+// ── 글자수 ───────────────────────────────────────────────
+function updatePromptLen() {
+  const len = document.getElementById('charPrompt').value.length;
+  document.getElementById('promptLen').textContent = len + '자';
+}
+function updateDetailLen() {
+  const len = document.getElementById('charDetail').value.length;
+  document.getElementById('detailLen').textContent = len + ' / 1000자';
+  document.getElementById('detailLen').style.color = len > 1000 ? 'var(--err)' : 'var(--muted)';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('charPrompt')?.addEventListener('input', updatePromptLen);
+  document.getElementById('charDetail')?.addEventListener('input', updateDetailLen);
+  document.getElementById('loreText')?.addEventListener('input', updateLoreLen);
+});
+
+// ── 유틸 ────────────────────────────────────────────────
+function showToast(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = 'inline-flex';
+  setTimeout(() => el.style.display = 'none', 2500);
+}
+function toggleEye(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+function esc(s = '') {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function b64ToBlob(b64, mime = 'image/jpeg') {
+  const bin = atob(b64); const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// 자동 로그인
+window.addEventListener('DOMContentLoaded', () => {
+  if (adminToken) {
+    fetch('/api/admin/character', { headers: { 'Authorization': `Bearer ${adminToken}` } })
+      .then(r => { if (r.ok) initAdmin(); else { adminToken=''; localStorage.removeItem('adminToken'); } })
+      .catch(() => {});
+  }
+});
+</script>
+</body>
+</html>

@@ -11,11 +11,16 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.79.0",
     "axios": "^1.13.6",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "form-data": "^4.0.5",
-    "multer": "^2.1.1"
+    "js-yaml": "^4.1.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "openai": "^6.31.0"
   }
 }
