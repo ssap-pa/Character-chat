@@ -1,1106 +1,1462 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI 캐릭터 챗 - DomoAI 테스트</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <title>AI 캐릭터 챗</title>
   <style>
-    :root {
-      --bg: #0f0f13;
-      --surface: #1a1a22;
-      --surface2: #22222e;
-      --border: #2e2e3e;
-      --accent: #7c5cbf;
-      --accent2: #a07de0;
-      --text: #e8e8f0;
-      --text-muted: #8888aa;
-      --bubble-ai: #1e1e2e;
-      --bubble-user: #2d1f5e;
-      --success: #4caf89;
-      --warning: #e0a060;
-      --danger: #e05050;
+    /* ══════════════════════════════════════
+       CSS 변수 · 리셋
+    ══════════════════════════════════════ */
+    :root{
+      --bg:#0a0a10;--surface:#14141e;--surface2:#1c1c28;--surface3:#22222e;
+      --border:#2a2a3a;--border2:#333348;
+      --accent:#7c5cbf;--accent2:#a07de0;--accent3:#c4a8ff;
+      --text:#e8e8f0;--muted:#7777a0;--muted2:#55557a;
+      --ai-bubble:#161625;--user-bubble:#2a1e55;
+      --ok:#4caf89;--warn:#e0a060;--err:#e05050;
+      --header-h:56px;
+      --input-h:auto;
+      --frame:420px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html{height:100%;background:#000;}
+    body{
+      height:100%;
+      background:#000; /* PC에서 프레임 바깥 = 완전 검정 */
+      color:var(--text);
+      font-family:'Noto Sans KR','Segoe UI',sans-serif;
+      display:flex;
+      justify-content:center;
+      align-items:stretch;
+      overflow:hidden;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Noto Sans KR', 'Segoe UI', sans-serif;
-      height: 100dvh;
-      display: flex;
-      overflow: hidden;
+    /* ══════════════════════════════════════
+       모바일 앱 프레임 (420px 고정)
+    ══════════════════════════════════════ */
+    #appFrame{
+      width:100%;
+      max-width:var(--frame);
+      min-width:0;
+      height:100vh;
+      background:var(--bg);
+      display:flex;
+      flex-direction:column;
+      position:relative;
+      overflow:hidden;
+      /* PC에서 양쪽 구분선 */
+      box-shadow:0 0 0 1px rgba(255,255,255,.05),
+                 -1px 0 0 rgba(255,255,255,.03),
+                  1px 0 0 rgba(255,255,255,.03);
     }
 
-    /* ── 사이드패널 (관리자/설정) ── */
-    .side-panel {
-      width: 300px;
-      min-width: 300px;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+    /* ══════════════════════════════════════
+       로딩 스크린
+    ══════════════════════════════════════ */
+    #loadingScreen{
+      position:absolute;inset:0;background:var(--bg);
+      display:flex;align-items:center;justify-content:center;
+      flex-direction:column;gap:14px;z-index:999;
     }
-    .side-header {
-      padding: 20px 16px 12px;
-      border-bottom: 1px solid var(--border);
+    .ld-spinner{
+      width:36px;height:36px;border:3px solid var(--border);
+      border-top-color:var(--accent);border-radius:50%;
+      animation:spin .8s linear infinite;
     }
-    .side-header h2 {
-      font-size: 15px;
-      color: var(--accent2);
-      letter-spacing: .5px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .side-header p {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 4px;
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .ld-txt{font-size:13px;color:var(--muted);}
+
+    /* ══════════════════════════════════════
+       LANDING PAGE
+    ══════════════════════════════════════ */
+    #landingPage{
+      position:absolute;inset:0;
+      background:var(--bg);
+      display:none;
+      flex-direction:column;
+      overflow-y:auto;
+      overflow-x:hidden;
+      z-index:100;
+      -webkit-overflow-scrolling:touch;
     }
 
-    .side-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+    /* 랜딩 상단 헤더 */
+    .landing-header{
+      position:sticky;top:0;z-index:50;
+      display:flex;align-items:center;justify-content:space-between;
+      padding:12px 16px;
+      background:transparent;
+      transition:background .25s,backdrop-filter .25s;
+    }
+    .landing-header.scrolled{
+      background:rgba(10,10,16,.92);
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+      border-bottom:1px solid var(--border);
+    }
+    .landing-logo{font-size:14px;font-weight:700;color:#fff;letter-spacing:.5px;}
+    .landing-header-btns{display:flex;gap:7px;}
+    .lh-btn{
+      padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;
+      cursor:pointer;border:none;transition:all .2s;
+    }
+    .lh-btn.ghost{
+      background:rgba(255,255,255,.1);color:#fff;
+      border:1px solid rgba(255,255,255,.2);
+    }
+    .lh-btn.ghost:active{background:rgba(255,255,255,.2);}
+    .lh-btn.primary{background:var(--accent);color:#fff;}
+    .lh-btn.primary:active{background:var(--accent2);}
+
+    /* 히어로 이미지 (전체너비 정사각형) */
+    .landing-hero{
+      position:relative;
+      width:100%;
+      padding:0 12px;
+      margin-top:-48px;
+      flex-shrink:0;
+    }
+    .hero-img-container{
+      position:relative;width:100%;padding-top:100%;
+      border-radius:14px;overflow:hidden;
+    }
+    .hero-img-container img.hero-main{
+      position:absolute;top:0;left:0;width:100%;height:100%;
+      object-fit:cover;
+    }
+    .hero-grad-top{
+      position:absolute;top:0;left:0;right:0;height:100px;
+      background:linear-gradient(to bottom,var(--bg),transparent);
+      z-index:2;pointer-events:none;
+    }
+    .hero-grad-bot{
+      position:absolute;bottom:0;left:0;right:0;height:55%;
+      background:linear-gradient(to top,rgba(10,10,16,.96) 0%,rgba(10,10,16,.65) 55%,transparent 100%);
+      z-index:2;pointer-events:none;
+    }
+    /* 블러 배경 */
+    .hero-blur-bg{
+      position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+    }
+    .hero-blur-bg img{
+      width:100%;height:100%;object-fit:cover;
+      filter:blur(70px);opacity:.45;transform:scale(1.1);
+    }
+    /* 오버레이 텍스트 */
+    .hero-overlay{
+      position:absolute;bottom:0;left:0;right:0;
+      padding:14px 16px;z-index:5;
+    }
+    .hero-char-name{
+      font-size:30px;font-weight:900;color:#fff;
+      letter-spacing:-.5px;line-height:1.1;
+      text-shadow:0 2px 10px rgba(0,0,0,.7);
+    }
+    .hero-char-tagline{
+      font-size:12px;color:rgba(255,255,255,.72);
+      margin-top:4px;line-height:1.4;
+    }
+    .hero-hashtags{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;}
+    .hero-htag{font-size:11.5px;color:rgba(255,255,255,.55);font-weight:500;}
+    .hero-htag::before{content:'#';}
+
+    /* 랜딩 컨텐츠 */
+    .landing-content{
+      padding:16px 12px;
+      display:flex;flex-direction:column;gap:12px;
+      flex-shrink:0;
     }
 
-    /* API 상태 배지 */
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 600;
+    /* 시작 버튼 */
+    .start-btn{
+      width:100%;padding:15px;
+      background:linear-gradient(135deg,var(--accent) 0%,#9b6de0 100%);
+      border:none;border-radius:14px;
+      color:#fff;font-size:15px;font-weight:800;cursor:pointer;
+      box-shadow:0 4px 20px rgba(124,92,191,.4);
+      transition:transform .15s,box-shadow .15s;letter-spacing:.3px;
     }
-    .status-badge.ok   { background: rgba(76,175,137,.15); color: var(--success); border: 1px solid rgba(76,175,137,.3); }
-    .status-badge.warn { background: rgba(224,160,96,.15);  color: var(--warning); border: 1px solid rgba(224,160,96,.3); }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+    .start-btn:active{transform:scale(.98);box-shadow:0 2px 12px rgba(124,92,191,.3);}
+    .start-sub{text-align:center;font-size:11px;color:var(--muted);margin-top:6px;}
 
-    /* 섹션 */
-    .section { display: flex; flex-direction: column; gap: 8px; }
-    .section-title {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 1px;
+    /* 섹션 카드 */
+    .landing-section{
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:14px;overflow:hidden;
     }
+    .ls-head{
+      padding:13px 14px 8px;
+      font-size:10px;color:var(--muted);font-weight:700;
+      letter-spacing:1.2px;text-transform:uppercase;
+    }
+    .ls-body{padding:0 14px 14px;}
+    .char-intro-text{font-size:13.5px;color:var(--text);line-height:1.8;}
+    .lore-text{font-size:13px;color:rgba(232,232,240,.72);line-height:1.85;}
 
-    label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; }
+    /* 스펙 그리드 */
+    .spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+    .spec-item{
+      background:var(--surface2);border-radius:10px;
+      padding:9px 11px;border:1px solid var(--border);
+    }
+    .spec-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px;font-weight:700;}
+    .spec-val{font-size:13.5px;color:var(--accent3);font-weight:700;}
 
-    input[type=text], input[type=file], select, textarea {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 13px;
-      padding: 9px 12px;
-      outline: none;
-      transition: border .2s;
-      font-family: inherit;
+    /* 미리보기 대화 */
+    .preview-chat{padding:0 14px 14px;}
+    .preview-msg{display:flex;gap:9px;margin-bottom:0;align-items:flex-start;}
+    .preview-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
+    .preview-bubble{
+      padding:9px 12px;border-radius:12px;border-top-left-radius:3px;
+      font-size:12.5px;line-height:1.65;
+      background:var(--ai-bubble);border:1px solid var(--border);color:var(--text);flex:1;
     }
-    input[type=text]:focus, select:focus, textarea:focus {
-      border-color: var(--accent);
-    }
-    textarea { resize: vertical; min-height: 70px; }
-
-    /* 이미지 업로드 박스 */
-    .upload-box {
-      border: 2px dashed var(--border);
-      border-radius: 10px;
-      padding: 14px;
-      text-align: center;
-      cursor: pointer;
-      transition: border .2s, background .2s;
-    }
-    .upload-box:hover { border-color: var(--accent); background: rgba(124,92,191,.05); }
-    .upload-box input { display: none; }
-    .upload-box .preview {
-      max-width: 100%;
-      max-height: 140px;
-      border-radius: 6px;
-      object-fit: cover;
-      display: none;
-    }
-    .upload-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-
-    /* 버튼 */
-    .btn {
-      padding: 10px 16px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 600;
-      font-family: inherit;
-      transition: opacity .2s, transform .1s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-    .btn:active { transform: scale(.97); }
-    .btn:disabled { opacity: .4; cursor: not-allowed; }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent2); }
-    .btn-outline { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
-    .btn-outline:hover { border-color: var(--accent); color: var(--accent2); }
-
-    /* 프롬프트 프리셋 칩 */
-    .presets { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip {
-      padding: 5px 10px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all .2s;
-      color: var(--text-muted);
-    }
-    .chip:hover, .chip.active { border-color: var(--accent); color: var(--accent2); background: rgba(124,92,191,.1); }
-
-    /* ── 메인 채팅 ── */
-    .chat-wrap {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+    .preview-bubble .pnarr{
+      display:block;color:#b0a0d0;font-style:italic;
+      font-size:11px;margin-bottom:5px;
     }
 
-    /* 채팅 헤더 */
-    .chat-header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 14px 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
+    /* ══════════════════════════════════════
+       CHAT PAGE  ← 앱 프레임 기반 고정 레이아웃
+    ══════════════════════════════════════ */
+    #chatPage{
+      display:none;flex-direction:column;
+      position:absolute;inset:0;
+      overflow:hidden;
     }
-    .char-avatar {
-      width: 42px; height: 42px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 2px solid var(--accent);
+    #chatPage.active{display:flex;}
+
+    /* ── 채팅 헤더 (상단 고정) ── */
+    .chat-header{
+      height:var(--header-h);
+      background:var(--surface);
+      border-bottom:1px solid var(--border);
+      padding:0 12px;
+      display:flex;align-items:center;gap:10px;
+      flex-shrink:0;
+      position:relative;
+      z-index:10;
     }
-    .char-info h3 { font-size: 15px; font-weight: 700; }
-    .char-info span { font-size: 12px; color: var(--text-muted); }
-    .header-badge {
-      margin-left: auto;
-      padding: 4px 10px;
-      background: rgba(124,92,191,.2);
-      border: 1px solid rgba(124,92,191,.4);
-      border-radius: 20px;
-      font-size: 11px;
-      color: var(--accent2);
+    /* 뒤로가기 버튼 */
+    .back-btn{
+      width:36px;height:36px;border-radius:50%;
+      background:transparent;border:none;
+      color:var(--text);font-size:20px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;transition:background .15s;
+      padding:0;line-height:1;
+    }
+    .back-btn:active{background:var(--surface2);}
+    /* 아바타 */
+    .char-avatar{
+      width:36px;height:36px;border-radius:50%;
+      object-fit:cover;border:2px solid var(--accent);
+      flex-shrink:0;cursor:pointer;
+    }
+    /* 이름/상태 */
+    .char-info{flex:1;min-width:0;}
+    .char-info h3{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .char-info .sub{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-top:1px;}
+    .online-dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 5px rgba(76,175,137,.8);flex-shrink:0;}
+    /* 헤더 우측 액션 */
+    .header-actions{display:flex;gap:5px;align-items:center;flex-shrink:0;}
+    .icon-btn{
+      height:30px;padding:0 9px;
+      background:var(--surface2);border:1px solid var(--border);
+      border-radius:8px;cursor:pointer;
+      display:flex;align-items:center;gap:4px;
+      font-size:11px;color:var(--muted);transition:all .2s;
+    }
+    .icon-btn:active{border-color:var(--accent);color:var(--accent2);}
+    /* 토큰 배지 */
+    .token-badge{
+      padding:3px 8px;
+      background:rgba(124,92,191,.15);border:1px solid rgba(124,92,191,.3);
+      border-radius:20px;font-size:10px;color:var(--accent2);
+      cursor:pointer;transition:all .2s;white-space:nowrap;
+    }
+    .token-badge.warn{background:rgba(224,160,96,.15);border-color:rgba(224,160,96,.3);color:var(--warn);}
+    .token-badge.danger{background:rgba(224,80,80,.15);border-color:rgba(224,80,80,.3);color:var(--err);}
+
+    /* ── 플레이 가이드 ── */
+    .play-guide{
+      background:rgba(124,92,191,.08);
+      border-bottom:1px solid rgba(124,92,191,.2);
+      padding:7px 14px;font-size:11px;color:#b0a0d0;
+      display:none;flex-shrink:0;
     }
 
-    /* 채팅 메시지 영역 */
-    .chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 24px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
+    /* ── 채팅 메시지 영역 (유일한 스크롤 구간) ── */
+    .chat-msgs{
+      flex:1;
+      overflow-y:auto;
+      overflow-x:hidden;
+      padding:14px 12px;
+      display:flex;flex-direction:column;
+      gap:0;
+      overscroll-behavior:contain;
+      -webkit-overflow-scrolling:touch;
+    }
+    /* 말풍선 그룹 */
+    .msg-grp{display:flex;flex-direction:column;margin-bottom:12px;max-width:88%;}
+    .msg-grp.ai  {align-self:flex-start;align-items:flex-start;}
+    .msg-grp.user{align-self:flex-end;align-items:flex-end;}
+
+    .sender{display:flex;align-items:center;gap:5px;margin-bottom:4px;}
+    .sender img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0;}
+    .sender span{font-size:10px;color:var(--muted);font-weight:600;}
+
+    .bubble{
+      padding:10px 13px;border-radius:16px;
+      font-size:13.5px;line-height:1.85;word-break:break-word;
+    }
+    .bubble.ai{
+      background:var(--ai-bubble);border:1px solid var(--border);
+      border-top-left-radius:4px;
+    }
+    .bubble.ai .narr{
+      font-style:italic;color:#b0a0d0;display:block;
+      margin-bottom:7px;font-size:12px;line-height:1.6;
+    }
+    .bubble.ai .dial{color:var(--text);font-weight:500;}
+    .bubble.user{
+      background:var(--user-bubble);
+      border:1px solid rgba(124,92,191,.3);
+      border-top-right-radius:4px;
+      color:#ddd8ff;
+    }
+    .bubble.err-b{background:rgba(224,80,80,.1);border:1px solid rgba(224,80,80,.3);color:#e08080;}
+
+    .sys-msg{
+      text-align:center;font-size:11px;color:var(--muted);
+      padding:4px 12px;background:rgba(255,255,255,.03);
+      border-radius:8px;margin:0 auto 10px;max-width:280px;
     }
 
-    /* ── 메시지 블록 ── */
-    .msg-group {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      margin-bottom: 18px;
-      max-width: 75%;
+    /* 상황 이미지 */
+    .situation-img-wrap{margin:4px 0;max-width:260px;}
+    .sit-img-card{border-radius:12px;overflow:hidden;border:1px solid var(--border);position:relative;cursor:pointer;}
+    .sit-img-card img{width:100%;display:block;max-height:280px;object-fit:cover;}
+    .sit-img-card video{width:100%;max-height:280px;object-fit:cover;display:block;}
+    .sit-overlay{
+      position:absolute;bottom:0;left:0;right:0;
+      background:linear-gradient(transparent,rgba(0,0,0,.7));
+      padding:16px 10px 7px;
+      display:flex;align-items:center;justify-content:space-between;
     }
-    .msg-group.ai  { align-self: flex-start; align-items: flex-start; }
-    .msg-group.user { align-self: flex-end;  align-items: flex-end; }
-
-    /* 캐릭터 이름 + 아바타 */
-    .msg-sender {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 6px;
-    }
-    .msg-sender img {
-      width: 24px; height: 24px;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-    .msg-sender span { font-size: 12px; color: var(--text-muted); font-weight: 600; }
-
-    /* 텍스트 버블 */
-    .bubble {
-      padding: 12px 16px;
-      border-radius: 14px;
-      font-size: 14px;
-      line-height: 1.7;
-      word-break: break-word;
-    }
-    .bubble.ai {
-      background: var(--bubble-ai);
-      border: 1px solid var(--border);
-      border-top-left-radius: 4px;
-      color: var(--text);
-    }
-    /* 내러티브 텍스트 (이탤릭, 제타처럼) */
-    .bubble.ai .narrative {
-      font-style: italic;
-      color: #b0a0d0;
-      display: block;
-      margin-bottom: 8px;
-      line-height: 1.8;
-    }
-    .bubble.ai .dialogue {
-      color: var(--text);
-      font-weight: 500;
-    }
-    .bubble.user {
-      background: var(--bubble-user);
-      border: 1px solid rgba(124,92,191,.3);
-      border-top-right-radius: 4px;
-      color: var(--text);
-    }
-
-    /* ── 인라인 이미지 카드 ── */
-    .image-card {
-      margin: 6px 0;
-      border-radius: 14px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      max-width: 320px;
-      position: relative;
-      cursor: pointer;
-      transition: transform .2s;
-    }
-    .image-card:hover { transform: scale(1.01); }
-    .image-card img {
-      width: 100%;
-      display: block;
-      background: var(--surface2);
-      min-height: 200px;
-    }
-    .image-card .img-overlay {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      background: linear-gradient(transparent, rgba(0,0,0,.7));
-      padding: 24px 12px 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .image-card .img-prompt {
-      font-size: 11px;
-      color: rgba(255,255,255,.75);
-      flex: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .image-card .img-badge {
-      font-size: 10px;
-      padding: 2px 7px;
-      background: rgba(124,92,191,.7);
-      border-radius: 10px;
-      color: #fff;
-      flex-shrink: 0;
-      margin-left: 6px;
-    }
-    /* 이미지 생성 중 스켈레톤 */
-    .image-skeleton {
-      width: 100%;
-      min-height: 220px;
-      background: linear-gradient(90deg, var(--surface2) 25%, var(--surface) 50%, var(--surface2) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
-      border-radius: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 10px;
-      color: var(--text-muted);
-      font-size: 13px;
-    }
-    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-    .spinner {
-      width: 32px; height: 32px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* 버블 아래 액션 버튼 */
-    .bubble-actions {
-      display: flex;
-      gap: 6px;
-      margin-top: 4px;
-      opacity: 0;
-      transition: opacity .2s;
-    }
-    .msg-group:hover .bubble-actions { opacity: 1; }
-    .action-btn {
-      padding: 3px 8px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 11px;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all .2s;
-    }
-    .action-btn:hover { border-color: var(--accent); color: var(--accent2); }
-
-    /* 입력창 영역 */
-    .chat-input-wrap {
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      padding: 14px 20px;
-      flex-shrink: 0;
-    }
-    .input-row {
-      display: flex;
-      gap: 10px;
-      align-items: flex-end;
-    }
-    .input-box {
-      flex: 1;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 16px;
-      font-size: 14px;
-      color: var(--text);
-      font-family: inherit;
-      resize: none;
-      min-height: 48px;
-      max-height: 120px;
-      outline: none;
-      transition: border .2s;
-      line-height: 1.5;
-    }
-    .input-box:focus { border-color: var(--accent); }
-    .input-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .icon-btn {
-      width: 40px; height: 40px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      transition: all .2s;
-      flex-shrink: 0;
-    }
-    .icon-btn:hover { border-color: var(--accent); background: rgba(124,92,191,.1); }
-    .send-btn {
-      width: 44px; height: 44px;
-      background: var(--accent);
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      color: #fff;
-      transition: all .2s;
-      flex-shrink: 0;
-    }
-    .send-btn:hover { background: var(--accent2); }
-    .send-btn:disabled { opacity: .4; cursor: not-allowed; }
-
-    /* 입력창 아래 힌트 */
-    .input-hint {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 8px;
-      display: flex;
-      gap: 12px;
-    }
-    .hint-chip {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      cursor: pointer;
-      padding: 3px 8px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      transition: all .2s;
-    }
-    .hint-chip:hover { border-color: var(--accent); color: var(--accent2); }
+    .sit-desc{font-size:10px;color:rgba(255,255,255,.75);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .sit-badge{font-size:9px;padding:2px 6px;background:rgba(124,92,191,.8);border-radius:6px;color:#fff;flex-shrink:0;margin-left:5px;}
 
     /* 타이핑 인디케이터 */
-    .typing-indicator {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 12px 16px;
-      background: var(--bubble-ai);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      border-top-left-radius: 4px;
-      width: fit-content;
+    .typing{
+      display:flex;align-items:center;gap:4px;
+      padding:9px 13px;background:var(--ai-bubble);border:1px solid var(--border);
+      border-radius:16px;border-top-left-radius:4px;width:fit-content;
     }
-    .typing-dot {
-      width: 7px; height: 7px;
-      background: var(--text-muted);
-      border-radius: 50%;
-      animation: bounce 1.2s infinite;
+    .tdot{width:6px;height:6px;background:var(--muted);border-radius:50%;animation:bounce 1.2s infinite;}
+    .tdot:nth-child(2){animation-delay:.2s;}
+    .tdot:nth-child(3){animation-delay:.4s;}
+    @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+    /* ── 입력 영역 (하단 고정) ── */
+    .input-area{
+      background:var(--surface);
+      border-top:1px solid var(--border);
+      padding:10px 12px;
+      flex-shrink:0;
+      /* iOS 안전 영역 */
+      padding-bottom:max(10px, env(safe-area-inset-bottom));
     }
-    .typing-dot:nth-child(2) { animation-delay: .2s; }
-    .typing-dot:nth-child(3) { animation-delay: .4s; }
-    @keyframes bounce {
-      0%, 60%, 100% { transform: translateY(0); }
-      30% { transform: translateY(-6px); }
+    .input-row{display:flex;gap:8px;align-items:flex-end;}
+    .input-box{
+      flex:1;
+      background:var(--surface2);border:1px solid var(--border);
+      border-radius:22px;
+      padding:10px 16px;
+      font-size:13px;color:var(--text);font-family:inherit;
+      resize:none;min-height:42px;max-height:100px;
+      outline:none;transition:border .2s;line-height:1.5;
+    }
+    .input-box:focus{border-color:var(--accent);}
+    .input-box::placeholder{color:var(--muted2);}
+    .send-btn{
+      width:42px;height:42px;
+      background:var(--accent);border:none;border-radius:50%;
+      cursor:pointer;display:flex;align-items:center;justify-content:center;
+      font-size:16px;color:#fff;transition:all .15s;flex-shrink:0;
+    }
+    .send-btn:active:not(:disabled){background:var(--accent2);transform:scale(.93);}
+    .send-btn:disabled{opacity:.35;cursor:not-allowed;}
+    /* 힌트 칩 */
+    .hint-row{display:flex;gap:6px;margin-top:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px;}
+    .hint-row::-webkit-scrollbar{display:none;}
+    .hchip{
+      padding:4px 11px;background:var(--surface2);border:1px solid var(--border);
+      border-radius:20px;font-size:10.5px;color:var(--muted);
+      cursor:pointer;transition:all .2s;white-space:nowrap;flex-shrink:0;
+    }
+    .hchip:active{border-color:var(--accent);color:var(--accent2);}
+
+    /* 토큰 소진 배너 */
+    .token-exhausted-banner{
+      background:linear-gradient(135deg,rgba(124,92,191,.2),rgba(160,125,224,.1));
+      border:1px solid rgba(124,92,191,.4);border-radius:12px;
+      padding:15px;margin:8px 12px;text-align:center;
+    }
+    .teb-title{font-size:14px;font-weight:700;color:var(--accent3);margin-bottom:5px;}
+    .teb-desc{font-size:12px;color:var(--muted);margin-bottom:11px;line-height:1.6;}
+    .teb-btns{display:flex;gap:7px;justify-content:center;}
+    .teb-btn{padding:8px 16px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;}
+    .teb-btn.primary{background:var(--accent);color:#fff;}
+    .teb-btn.ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+
+    /* ══════════════════════════════════════
+       라이트박스
+    ══════════════════════════════════════ */
+    .lightbox{
+      position:fixed;inset:0;background:rgba(0,0,0,.93);
+      display:flex;align-items:center;justify-content:center;
+      z-index:2000;padding:20px;
+      opacity:0;pointer-events:none;transition:opacity .2s;
+    }
+    .lightbox.open{opacity:1;pointer-events:all;}
+    .lightbox-inner{max-width:90vw;max-height:90vh;}
+    .lightbox-inner img,.lightbox-inner video{max-width:100%;max-height:85vh;border-radius:10px;}
+    .lb-close{
+      position:absolute;top:14px;right:14px;
+      background:rgba(255,255,255,.12);border:none;color:#fff;
+      width:36px;height:36px;border-radius:50%;cursor:pointer;
+      font-size:16px;display:flex;align-items:center;justify-content:center;
     }
 
-    /* 이미지 라이트박스 */
-    .lightbox {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.85);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 20px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .2s;
+    /* ══════════════════════════════════════
+       모달 (공통)
+    ══════════════════════════════════════ */
+    .modal-overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.78);
+      display:flex;align-items:flex-end;justify-content:center;
+      z-index:1000;padding:0;
+      opacity:0;pointer-events:none;transition:opacity .25s;
     }
-    .lightbox.open { opacity: 1; pointer-events: all; }
-    .lightbox img {
-      max-width: 90vw;
-      max-height: 90vh;
-      border-radius: 12px;
-      box-shadow: 0 24px 80px rgba(0,0,0,.5);
+    .modal-overlay.open{opacity:1;pointer-events:all;}
+    .modal{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:20px 20px 0 0;
+      padding:28px 24px 32px;
+      width:100%;max-width:var(--frame);
+      max-height:92vh;overflow-y:auto;
+      transform:translateY(20px);transition:transform .25s;
     }
-    .lightbox-close {
-      position: absolute; top: 20px; right: 20px;
-      background: rgba(255,255,255,.1);
-      border: none;
-      color: #fff;
-      width: 40px; height: 40px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .modal-overlay.open .modal{transform:translateY(0);}
+    /* 모달 핸들바 */
+    .modal-handle{
+      width:36px;height:4px;border-radius:2px;
+      background:var(--border2);margin:0 auto 20px;
     }
+    .modal h2{font-size:18px;font-weight:700;margin-bottom:5px;color:var(--accent3);}
+    .modal .sub{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.6;}
+    .mfield{margin-bottom:13px;}
+    .mfield label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:600;letter-spacing:.3px;}
+    .mfield input{
+      width:100%;background:var(--surface2);border:1px solid var(--border);
+      border-radius:10px;color:var(--text);font-size:13px;
+      padding:11px 13px;outline:none;transition:border .2s;font-family:inherit;
+    }
+    .mfield input:focus{border-color:var(--accent);}
+    .mbtn{
+      width:100%;padding:13px;background:var(--accent);
+      border:none;border-radius:12px;color:#fff;
+      font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px;
+    }
+    .mbtn:active{background:var(--accent2);}
+    .mbtn.ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border);margin-top:8px;}
+    .mbtn.ghost:active{border-color:var(--accent);color:var(--accent2);}
+    .merr{font-size:11px;color:var(--err);min-height:16px;margin-bottom:7px;}
+
+    /* 장르 선택 */
+    .genre-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+    .genre-card{
+      padding:11px 12px;background:var(--surface2);
+      border:2px solid var(--border);border-radius:12px;
+      cursor:pointer;transition:all .2s;text-align:center;
+    }
+    .genre-card.selected{background:rgba(124,92,191,.2);border-color:var(--accent);color:var(--accent3);}
+    .genre-card .g-icon{font-size:22px;margin-bottom:5px;}
+    .genre-card .g-label{font-size:11px;font-weight:600;}
 
     /* 스크롤바 */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    ::-webkit-scrollbar{width:2px;}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 
-    /* 반응형 */
-    @media (max-width: 768px) {
-      .side-panel { display: none; }
-    }
-
-    /* 생성 결과 로그 */
-    .gen-log {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 11px;
-      color: var(--text-muted);
-      font-family: monospace;
-      max-height: 120px;
-      overflow-y: auto;
-      line-height: 1.6;
-    }
-    .gen-log .log-ok   { color: var(--success); }
-    .gen-log .log-warn { color: var(--warning); }
-    .gen-log .log-err  { color: var(--danger); }
+    /* 애니메이션 */
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    .anim-1{animation:fadeUp .4s ease forwards;}
+    .anim-2{animation:fadeUp .4s .08s ease both;}
+    .anim-3{animation:fadeUp .4s .16s ease both;}
+    .anim-4{animation:fadeUp .4s .24s ease both;}
   </style>
 </head>
 <body>
 
-<!-- ── 사이드 패널 (관리자/DomoAI 설정) ── -->
-<aside class="side-panel">
-  <div class="side-header">
-    <h2>⚙️ 관리자 설정</h2>
-    <p>캐릭터 & DomoAI 이미지 생성 테스트</p>
-  </div>
-  <div class="side-body">
+<!-- ══════════════════════════════════════
+     앱 프레임 (max-width 420px, 중앙 정렬)
+══════════════════════════════════════ -->
+<div id="appFrame">
 
-    <!-- API 상태 -->
-    <div class="section">
-      <div class="section-title">DomoAI 연결 상태</div>
-      <div id="apiStatus" class="status-badge warn">
-        <span class="status-dot"></span>
-        <span>확인 중...</span>
+  <!-- 로딩 -->
+  <div id="loadingScreen">
+    <div class="ld-spinner"></div>
+    <div class="ld-txt">캐릭터를 불러오는 중...</div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       LANDING PAGE
+  ══════════════════════════════════════ -->
+  <div id="landingPage">
+
+    <!-- 헤더 (스크롤 시 배경) -->
+    <div class="landing-header" id="landingHeader">
+      <div class="landing-logo">✦ AI Character</div>
+      <div class="landing-header-btns" id="landingHeaderBtns">
+        <button class="lh-btn ghost" onclick="openLoginModal()">로그인</button>
+        <button class="lh-btn primary" onclick="openRegisterModal()">가입하기</button>
       </div>
     </div>
 
-    <!-- 캐릭터 레퍼런스 이미지 설정 -->
-    <div class="section">
-      <div class="section-title">📸 캐릭터 레퍼런스 이미지</div>
-      <p style="font-size:11px;color:var(--text-muted);line-height:1.6">
-        이 이미지를 기준으로 DomoAI가 캐릭터 일관성을 유지하면서<br>표정/상황을 바꾼 이미지를 생성합니다.
-      </p>
-      <div class="upload-box" onclick="document.getElementById('refImageInput').click()">
-        <input type="file" id="refImageInput" accept="image/*" onchange="previewRefImage(this)" />
-        <img id="refPreview" class="preview" src="" alt="레퍼런스" />
-        <div id="uploadHint">
-          <div style="font-size:24px">🖼️</div>
-          <div class="upload-hint">클릭하여 캐릭터 기준 이미지 업로드<br>(JPG/PNG, 10MB 이하)</div>
+    <!-- 히어로 이미지 -->
+    <div class="landing-hero">
+      <div class="hero-blur-bg"><img id="heroBlurBg" src="" alt=""/></div>
+      <div class="hero-img-container">
+        <img class="hero-main" id="landingHeroImg" src="" alt="캐릭터"/>
+        <div class="hero-grad-top"></div>
+        <div class="hero-grad-bot"></div>
+        <div class="hero-overlay">
+          <div class="hero-char-name" id="landingName">도하준</div>
+          <div class="hero-char-tagline" id="landingRole">《나 혼자만 레벨업》 헌터</div>
+          <div class="hero-hashtags" id="landingHashtags"></div>
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text-muted)">또는 URL로 설정:</div>
-      <input type="text" id="refImageUrl" placeholder="https://..." />
-      <button class="btn btn-outline" onclick="loadRefFromUrl()">URL로 미리보기</button>
     </div>
 
-    <!-- 이미지 생성 스타일 -->
-    <div class="section">
-      <div class="section-title">🎨 생성 스타일</div>
-      <label>기본 스타일</label>
-      <select id="genStyle">
-        <option value="anime">애니메이션 (Anime)</option>
-        <option value="manhwa">만화/웹툰 (Manhwa)</option>
-        <option value="realistic">실사풍 (Realistic)</option>
-        <option value="illustration">일러스트</option>
-      </select>
+    <!-- 컨텐츠 -->
+    <div class="landing-content">
 
-      <label>표정/상황 프리셋</label>
-      <div class="presets" id="presetChips">
-        <span class="chip" onclick="setPreset(this, '슬픈 표정, 눈물이 맺힌')">😢 슬픔</span>
-        <span class="chip" onclick="setPreset(this, '환하게 웃는 표정, 행복한')">😊 기쁨</span>
-        <span class="chip" onclick="setPreset(this, '당황하고 놀란 표정')">😳 당황</span>
-        <span class="chip" onclick="setPreset(this, '냉정하고 차가운 표정')">😐 냉정</span>
-        <span class="chip" onclick="setPreset(this, '부끄럽고 수줍은 표정, 볼이 붉은')">😳 수줍음</span>
-        <span class="chip" onclick="setPreset(this, '진지하고 결연한 표정')">😤 결연</span>
-        <span class="chip" onclick="setPreset(this, '화가 난 표정')">😠 분노</span>
-        <span class="chip" onclick="setPreset(this, '잠이 오는 졸린 표정')">😴 졸림</span>
+      <!-- 시작 버튼 -->
+      <div class="anim-1">
+        <button class="start-btn" onclick="startChat()">✦ 대화 시작하기</button>
+        <div class="start-sub">무료 <strong id="guestLimitTxt">10회</strong> · 회원가입 시 <strong>100회</strong></div>
       </div>
 
-      <label>추가 프롬프트</label>
-      <textarea id="customPrompt" placeholder="예: 교실 창가에 서있는, 교복 착용, 바람에 머리카락이 날리는..."></textarea>
+      <!-- 캐릭터 소개 -->
+      <div class="landing-section anim-2">
+        <div class="ls-head">Character</div>
+        <div class="ls-body">
+          <div class="char-intro-text" id="landingDetail">
+            말수가 적고 냉정하지만, 소중한 사람에게는 끝까지 지키려는 성향이 있다.
+          </div>
+        </div>
+      </div>
+
+      <!-- 스펙 (데이터 있을 때만) -->
+      <div class="landing-section anim-3" id="specsSection" style="display:none;">
+        <div class="ls-head">스펙</div>
+        <div class="ls-body"><div class="spec-grid" id="landingSpecGrid"></div></div>
+      </div>
+
+      <!-- 세계관 (데이터 있을 때만) -->
+      <div class="landing-section anim-3" id="loreSection" style="display:none;">
+        <div class="ls-head">세계관</div>
+        <div class="ls-body"><div class="lore-text" id="landingLore"></div></div>
+      </div>
+
+      <!-- 미리보기 대화 -->
+      <div class="landing-section anim-4">
+        <div class="ls-head" style="padding-bottom:10px;">대화 미리보기</div>
+        <div class="preview-chat">
+          <div class="preview-msg">
+            <img class="preview-avatar" id="previewAvatar" src="" alt=""/>
+            <div class="preview-bubble" id="previewBubble">
+              <span class="pnarr">도하준은 멀리서 너를 발견하고 걸음을 멈춘다.</span>
+              "이 시간에 혼자 나온 거야?"
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:24px;"></div>
     </div>
+  </div><!-- /landingPage -->
 
-    <!-- 수동 테스트 생성 -->
-    <div class="section">
-      <div class="section-title">🧪 이미지 생성 테스트</div>
-      <button class="btn btn-primary" id="testGenBtn" onclick="testGenerateImage()">
-        ✨ 지금 이미지 생성 테스트
-      </button>
-      <div id="genLog" class="gen-log" style="display:none"></div>
-    </div>
+  <!-- ══════════════════════════════════════
+       CHAT PAGE
+  ══════════════════════════════════════ -->
+  <div id="chatPage">
 
-  </div>
-</aside>
-
-<!-- ── 메인 채팅 ── -->
-<div class="chat-wrap">
-
-  <!-- 헤더 -->
-  <div class="chat-header">
-    <img id="headerAvatar" class="char-avatar" src="https://api.dicebear.com/7.x/adventurer/svg?seed=character" alt="캐릭터" />
-    <div class="char-info">
-      <h3 id="charName">도하준</h3>
-      <span>AI 캐릭터 · 온라인</span>
-    </div>
-    <span class="header-badge">DomoAI 테스트 모드</span>
-  </div>
-
-  <!-- 메시지 목록 -->
-  <div class="chat-messages" id="chatMessages"></div>
-
-  <!-- 입력창 -->
-  <div class="chat-input-wrap">
-    <div class="input-row">
-      <textarea
-        class="input-box"
-        id="msgInput"
-        placeholder="메시지를 입력하세요..."
-        rows="1"
-        onkeydown="handleKey(event)"
-        oninput="autoResize(this)"
-      ></textarea>
-      <div class="input-actions">
-        <button class="icon-btn" title="이미지 생성" onclick="triggerImageGen()">🎨</button>
-        <button class="send-btn" id="sendBtn" onclick="sendMessage()">▶</button>
+    <!-- 상단 고정 헤더 -->
+    <div class="chat-header">
+      <!-- 뒤로가기 버튼 -->
+      <button class="back-btn" onclick="goToLanding()" title="뒤로">‹</button>
+      <!-- 아바타 -->
+      <img id="headerAvatar" class="char-avatar" src="" alt="캐릭터"/>
+      <!-- 이름/상태 -->
+      <div class="char-info">
+        <h3 id="headerName">캐릭터</h3>
+        <div class="sub">
+          <div class="online-dot"></div>
+          <span id="headerSub">온라인</span>
+        </div>
+      </div>
+      <!-- 우측 액션 -->
+      <div class="header-actions">
+        <div class="token-badge" id="tokenBadge" onclick="onTokenBadgeClick()" title="남은 대화 횟수">🎫 --</div>
+        <button class="icon-btn" id="loginBtn" onclick="openLoginModal()" title="로그인">👤</button>
+        <button class="icon-btn" onclick="resetChat()" title="초기화">🔄</button>
       </div>
     </div>
-    <div class="input-hint">
-      <span class="hint-chip" onclick="insertHint('*조용히 창문을 바라본다*')">✍️ 상황 묘사</span>
-      <span class="hint-chip" onclick="triggerImageGen()">🎨 이미지 생성</span>
-      <span class="hint-chip" onclick="insertHint('지금 어떤 표정이야?')">😊 표정 변화</span>
+
+    <!-- 플레이 가이드 -->
+    <div class="play-guide" id="playGuideBar"></div>
+
+    <!-- 채팅 메시지 (스크롤 영역) -->
+    <div class="chat-msgs" id="chatMsgs"></div>
+
+    <!-- 하단 고정 입력 -->
+    <div class="input-area">
+      <div class="input-row">
+        <textarea class="input-box" id="msgInput"
+          placeholder="메시지 입력... (Enter: 전송)" rows="1"
+          onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMsg()">▶</button>
+      </div>
+      <div class="hint-row" id="hintRow"></div>
     </div>
+
+  </div><!-- /chatPage -->
+
+</div><!-- /appFrame -->
+
+<!-- 라이트박스 -->
+<div class="lightbox" id="lightbox" onclick="closeLb()">
+  <button class="lb-close">✕</button>
+  <div class="lightbox-inner" id="lbInner"></div>
+</div>
+
+<!-- ══════════════════════════════════════
+     모달: 로그인
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="loginModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>👤 로그인</h2>
+    <div class="sub">계정으로 로그인하면 더 많은 대화를 즐길 수 있어요.</div>
+    <div class="mfield">
+      <label>이메일</label>
+      <input type="email" id="loginEmail" placeholder="example@email.com"/>
+    </div>
+    <div class="mfield">
+      <label>비밀번호</label>
+      <input type="password" id="loginPw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <div class="merr" id="loginErr"></div>
+    <button class="mbtn" onclick="doLogin()">로그인</button>
+    <button class="mbtn ghost" onclick="closeLoginModal(); openRegisterModal()">회원가입</button>
+    <button class="mbtn ghost" onclick="closeLoginModal()">취소</button>
   </div>
 </div>
 
-<!-- 라이트박스 -->
-<div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
-  <img id="lightboxImg" src="" alt="" />
+<!-- ══════════════════════════════════════
+     모달: 회원가입 Step 1
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="registerModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="text-align:center;font-size:26px;margin-bottom:10px;">✨</div>
+    <h2>회원가입</h2>
+    <div class="sub">가입하면 더 많은 대화와 맞춤 설정이 가능해요.</div>
+    <div class="mfield">
+      <label>이메일 *</label>
+      <input type="email" id="regEmail" placeholder="example@email.com"/>
+    </div>
+    <div class="mfield">
+      <label>비밀번호 *</label>
+      <input type="password" id="regPw" placeholder="6자 이상"/>
+    </div>
+    <div class="mfield">
+      <label>닉네임</label>
+      <input type="text" id="regNickname" placeholder="사용하실 닉네임 (선택)"/>
+    </div>
+    <div class="merr" id="regErr"></div>
+    <button class="mbtn" onclick="doRegisterStep1()">다음 →</button>
+    <button class="mbtn ghost" onclick="closeRegisterModal(); openLoginModal()">로그인으로 돌아가기</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     모달: 회원가입 Step 2 - 장르 선택
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="genreModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="text-align:center;font-size:26px;margin-bottom:10px;">🎭</div>
+    <h2>좋아하는 장르는?</h2>
+    <div class="sub">관심 장르를 선택하세요. 여러 개 가능해요.</div>
+    <div class="genre-grid" id="genreGrid">
+      <div class="genre-card" data-genre="romance" onclick="toggleGenre(this)">
+        <div class="g-icon">💕</div><div class="g-label">로맨스</div>
+      </div>
+      <div class="genre-card" data-genre="fantasy" onclick="toggleGenre(this)">
+        <div class="g-icon">⚔️</div><div class="g-label">판타지</div>
+      </div>
+      <div class="genre-card" data-genre="action" onclick="toggleGenre(this)">
+        <div class="g-icon">💥</div><div class="g-label">액션</div>
+      </div>
+      <div class="genre-card" data-genre="daily" onclick="toggleGenre(this)">
+        <div class="g-icon">☀️</div><div class="g-label">일상</div>
+      </div>
+      <div class="genre-card" data-genre="thriller" onclick="toggleGenre(this)">
+        <div class="g-icon">🔪</div><div class="g-label">스릴러</div>
+      </div>
+      <div class="genre-card" data-genre="sf" onclick="toggleGenre(this)">
+        <div class="g-icon">🚀</div><div class="g-label">SF</div>
+      </div>
+    </div>
+    <div class="merr" id="genreErr"></div>
+    <button class="mbtn" onclick="doGenreStep()">다음 →</button>
+    <button class="mbtn ghost" onclick="doGenreStep(true)">건너뛰기</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     모달: 회원가입 Step 3 - 호칭 설정
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="charNameModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="text-align:center;font-size:26px;margin-bottom:10px;">💬</div>
+    <h2 id="charNameModalTitle">뭐라고 불러드릴까요?</h2>
+    <div class="sub" id="charNameModalDesc">캐릭터가 사용자를 어떻게 부를지 설정하세요.<br>설정 안 하면 "너"로 부릅니다.</div>
+    <div class="mfield">
+      <label>호칭 (예: 짱아, 자기, 이름 등)</label>
+      <input type="text" id="charNameInput" placeholder="예: 짱아, 자기, 또는 본인 이름" maxlength="10"/>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:13px;padding:8px 11px;background:rgba(124,92,191,.08);border-radius:8px;line-height:1.7;">
+      💡 예시: "이리 와, <span id="charNamePreview" style="color:var(--accent2);">자기</span>." / "오늘 힘들었어, <span id="charNamePreview2" style="color:var(--accent2);">자기</span>?"
+    </div>
+    <div class="merr" id="charNameErr"></div>
+    <button class="mbtn" onclick="doCharNameStep()">완료 🎉</button>
+    <button class="mbtn ghost" onclick="doCharNameStep(true)">건너뛰기</button>
+  </div>
 </div>
 
 <script>
-// ── 상태 ──
-let refImageBase64 = null;
-let refImageUrl    = null;
-let currentStyle   = 'anime';
-let selectedPreset = '';
-let isGenerating   = false;
-let charAvatarSrc  = 'https://api.dicebear.com/7.x/adventurer/svg?seed=character';
+// ══════════════════════════════════════════
+//  상태
+// ══════════════════════════════════════════
+let isLoading    = false;
+let charData     = null;
+let avatarSrc    = '';
+let currentPage  = 'landing';
 
-// 샘플 캐릭터 응답 (Claude API 연동 전 목업)
-const sampleResponses = [
-  {
-    narrative: "그는 창문 너머 하늘을 바라보다 천천히 고개를 돌렸다. 헝클어진 머리카락 사이로 그의 눈이 반짝였다.",
-    dialogue: "\"......왜 그런 걸 물어보는 거야.\"",
-    generateImage: false
-  },
-  {
-    narrative: "한참의 침묵이 흘렀다. 그는 입술을 굳게 다물고, 무언가를 결심한 듯 눈을 감았다.",
-    dialogue: "\"...모르겠어. 나도 잘 모르겠다고.\"",
-    generateImage: true,
-    imagePrompt: "남자 캐릭터, 눈을 감고 결심한 듯한 표정, 실내 조명"
-  },
-  {
-    narrative: "그가 희미하게 웃었다. 그것은 어딘가 쓸쓸하고, 동시에 따뜻한 미소였다.",
-    dialogue: "\"...그냥, 네가 있어서 다행이라고 생각했어.\"",
-    generateImage: true,
-    imagePrompt: "남자 캐릭터, 쓸쓸하고 따뜻한 미소, 부드러운 조명"
-  },
-  {
-    narrative: "그는 당황한 듯 시선을 피했다. 귀 끝이 살짝 붉어지는 것이 보였다.",
-    dialogue: "\"갑자기 무슨 소리야, 진짜.\"",
-    generateImage: false
-  },
-  {
-    narrative: "침묵. 그는 오랫동안 아무 말도 하지 않았다. 교무실 벽시계 소리만이 그 공간을 채웠다.",
-    dialogue: "\"...지금은 말하기 싫어.\"",
-    generateImage: true,
-    imagePrompt: "남자 캐릭터, 입을 다물고 침묵하는 모습, 어두운 조명"
+// 인증
+let authToken    = localStorage.getItem('authToken')  || null;
+let userId       = localStorage.getItem('userId')     || null;
+let isGuest      = localStorage.getItem('isGuest')   !== 'false';
+let tokenUsed    = parseInt(localStorage.getItem('tokenUsed')  || '0');
+let tokenLimit   = parseInt(localStorage.getItem('tokenLimit') || '10');
+let userNickname = localStorage.getItem('userNickname')        || null;
+
+let regTempData    = {};
+let selectedGenres = [];
+
+const SESSION_ID = userId || ('sess_' + Date.now() + '_' + Math.random().toString(36).slice(2,6));
+
+// ══════════════════════════════════════════
+//  초기화
+// ══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const data = await fetch('/api/character').then(r => r.json());
+    charData   = data;
+    avatarSrc  = data.profileImageSrc
+      || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(data.name)}`;
+
+    document.title = data.name + ' · AI 캐릭터 챗';
+
+    setupLanding(data);
+
+    // 채팅 헤더 세팅
+    document.getElementById('headerAvatar').src          = avatarSrc;
+    document.getElementById('headerName').textContent    = data.name;
+    document.getElementById('headerSub').textContent     = data.intro || '온라인';
+
+    if (data.hashtags?.length) {
+      // 채팅 헤더에서는 해시태그 숨김 (공간 절약)
+    }
+    if (data.playGuide) {
+      const pg = document.getElementById('playGuideBar');
+      pg.textContent = '💡 ' + data.playGuide;
+      pg.style.display = 'block';
+    }
+    renderHints();
+
+    document.getElementById('loadingScreen').style.display = 'none';
+    await initAuth();
+    showLanding();
+
+  } catch(e) {
+    document.getElementById('loadingScreen').innerHTML =
+      `<div style="color:var(--err);text-align:center;padding:20px">서버 연결 오류<br><small>${e.message}</small></div>`;
   }
-];
-let responseIdx = 0;
-
-// ── 초기화 ──
-document.addEventListener('DOMContentLoaded', () => {
-  checkApiStatus();
-  appendInitialMessage();
 });
 
-function checkApiStatus() {
-  fetch('/api/domoai-status')
-    .then(r => r.json())
-    .then(d => {
-      const el = document.getElementById('apiStatus');
-      if (d.connected) {
-        el.className = 'status-badge ok';
-        el.innerHTML = '<span class="status-dot"></span><span>DomoAI 연결됨</span>';
-      } else {
-        el.className = 'status-badge warn';
-        el.innerHTML = '<span class="status-dot"></span><span>API 키 미설정 (테스트 모드)</span>';
-      }
-    })
-    .catch(() => {
-      const el = document.getElementById('apiStatus');
-      el.className = 'status-badge warn';
-      el.innerHTML = '<span class="status-dot"></span><span>서버 연결 중...</span>';
-    });
-}
+// ── 랜딩 세팅 ─────────────────────────────
+function setupLanding(data) {
+  // 히어로 이미지
+  ['landingHeroImg','heroBlurBg','previewAvatar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.src = avatarSrc;
+  });
 
-function appendInitialMessage() {
-  const msgs = document.getElementById('chatMessages');
-  const group = document.createElement('div');
-  group.className = 'msg-group ai';
-  group.innerHTML = `
-    <div class="msg-sender">
-      <img src="${charAvatarSrc}" alt="도하준" />
-      <span>도하준</span>
-    </div>
-    <div class="bubble ai">
-      <span class="narrative">교무실이라는 공간도, 교사라는 자신의 신분도, 그 모든 것이 희미한 연기처럼 흩어지고 있었다. 오직 두 사람만이 존재하는, 세상과 단절된 작은 섬에 갇혀버린 기분이었다. 그는 굳게 다물었던 입술을 힘겹게 열었다.</span>
-      <span class="dialogue">"…….아."</span>
-    </div>
-    <div class="image-card" onclick="openLightbox('https://api.dicebear.com/7.x/big-ears/svg?seed=dohajoon&backgroundColor=1a1a2e')">
-      <img src="https://api.dicebear.com/7.x/big-ears/svg?seed=dohajoon&backgroundColor=1a1a2e" alt="캐릭터 이미지" style="min-height:160px" />
-      <div class="img-overlay">
-        <span class="img-prompt">기본 캐릭터 프로필</span>
-        <span class="img-badge">캐릭터 이미지</span>
-      </div>
-    </div>
-    <div class="bubble-actions">
-      <span class="action-btn">🔄 다시 생성</span>
-      <span class="action-btn">🎨 이미지 변경</span>
-    </div>
-  `;
-  msgs.appendChild(group);
-}
+  document.getElementById('landingName').textContent = data.name;
+  document.getElementById('landingRole').textContent = data.intro || 'AI 캐릭터';
 
-// ── 메시지 전송 ──
-async function sendMessage() {
-  const input = document.getElementById('msgInput');
-  const text = input.value.trim();
-  if (!text || isGenerating) return;
-
-  appendUserMessage(text);
-  input.value = '';
-  autoResize(input);
-
-  showTyping();
-  await delay(1200 + Math.random() * 800);
-
-  const resp = sampleResponses[responseIdx % sampleResponses.length];
-  responseIdx++;
-
-  hideTyping();
-  await appendAiMessage(resp);
-}
-
-function appendUserMessage(text) {
-  const msgs = document.getElementById('chatMessages');
-  const group = document.createElement('div');
-  group.className = 'msg-group user';
-  group.innerHTML = `<div class="bubble user">${escHtml(text)}</div>`;
-  msgs.appendChild(group);
-  scrollBottom();
-}
-
-async function appendAiMessage(resp) {
-  const msgs = document.getElementById('chatMessages');
-  const group = document.createElement('div');
-  group.className = 'msg-group ai';
-
-  let innerHtml = `
-    <div class="msg-sender">
-      <img src="${charAvatarSrc}" alt="도하준" />
-      <span>도하준</span>
-    </div>
-    <div class="bubble ai">
-      <span class="narrative">${escHtml(resp.narrative)}</span>
-      <span class="dialogue">${escHtml(resp.dialogue)}</span>
-    </div>`;
-
-  if (resp.generateImage) {
-    // 스켈레톤 먼저 표시
-    innerHtml += `
-      <div class="image-skeleton" id="skeleton-${responseIdx}">
-        <div class="spinner"></div>
-        <span>🎨 DomoAI 이미지 생성 중...</span>
-        <span style="font-size:10px;opacity:.6">${resp.imagePrompt}</span>
-      </div>`;
+  if (data.hashtags?.length) {
+    document.getElementById('landingHashtags').innerHTML =
+      data.hashtags.slice(0,5).map(t => `<span class="hero-htag">${esc(t)}</span>`).join('');
   }
 
-  innerHtml += `
-    <div class="bubble-actions">
-      <span class="action-btn">🔄 다시 생성</span>
-      <span class="action-btn" onclick="triggerImageGen()">🎨 이미지 생성</span>
-    </div>`;
+  if (data.characterDetail) {
+    const lines = data.characterDetail.split('\n').slice(0,3).join('<br>');
+    document.getElementById('landingDetail').innerHTML = lines || data.characterDetail;
+  }
 
-  group.innerHTML = innerHtml;
-  msgs.appendChild(group);
-  scrollBottom();
+  if (data.specs?.length) {
+    const sec = document.getElementById('specsSection');
+    document.getElementById('landingSpecGrid').innerHTML = data.specs.map(s =>
+      `<div class="spec-item">
+        <div class="spec-lbl">${esc(s.label)}</div>
+        <div class="spec-val">${esc(s.value)}</div>
+      </div>`
+    ).join('');
+    sec.style.display = '';
+  }
 
-  // 이미지 생성 요청
-  if (resp.generateImage) {
-    isGenerating = true;
-    document.getElementById('sendBtn').disabled = true;
-    try {
-      const result = await generateImage(resp.imagePrompt);
-      const skeletonEl = document.getElementById(`skeleton-${responseIdx}`);
-      if (skeletonEl && result.imageUrl) {
-        const card = document.createElement('div');
-        card.className = 'image-card';
-        card.innerHTML = `
-          <img src="${result.imageUrl}" alt="생성된 이미지" onload="scrollBottom()" />
-          <div class="img-overlay">
-            <span class="img-prompt">${escHtml(resp.imagePrompt)}</span>
-            <span class="img-badge">${result.mock ? '테스트 이미지' : 'DomoAI'}</span>
-          </div>`;
-        card.onclick = () => openLightbox(result.imageUrl);
-        skeletonEl.replaceWith(card);
-        scrollBottom();
-      }
-    } catch (e) {
-      const skeletonEl = document.getElementById(`skeleton-${responseIdx}`);
-      if (skeletonEl) skeletonEl.innerHTML = '<span style="color:var(--danger);padding:16px">이미지 생성 실패</span>';
-    } finally {
-      isGenerating = false;
-      document.getElementById('sendBtn').disabled = false;
+  if (data.lore) {
+    const sec = document.getElementById('loreSection');
+    document.getElementById('landingLore').innerHTML = esc(data.lore).replace(/\n/g,'<br>');
+    sec.style.display = '';
+  }
+
+  if (data.openingMessage) {
+    const parsed = parseMsg(data.openingMessage);
+    const bubble = document.getElementById('previewBubble');
+    if (bubble) {
+      bubble.innerHTML =
+        (parsed.narrative ? `<span class="pnarr">${esc(parsed.narrative)}</span>` : '') +
+        (parsed.dialogue  ? esc(parsed.dialogue)
+                          : esc(data.openingMessage.split('\n').slice(-1)[0]));
     }
   }
-}
 
-// ── DomoAI 이미지 생성 API 호출 ──
-async function generateImage(prompt) {
-  const style = document.getElementById('genStyle').value;
-  const extra = document.getElementById('customPrompt').value;
-  const fullPrompt = [selectedPreset, prompt, extra].filter(Boolean).join(', ');
+  document.getElementById('guestLimitTxt').textContent =
+    (parseInt(localStorage.getItem('tokenLimit')) || 10) + '회';
 
-  const body = {
-    prompt: fullPrompt,
-    style: style
-  };
-
-  // 레퍼런스 이미지 사용
-  if (refImageBase64) {
-    body.reference_base64 = refImageBase64;
-    const res = await fetch('/api/generate-character-image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    return await res.json();
-  } else if (refImageUrl) {
-    body.imageUrl = refImageUrl;
-    const res = await fetch('/api/generate-character-image-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    return await res.json();
-  } else {
-    // 레퍼런스 없이 텍스트만으로 생성 (목업)
-    const res = await fetch('/api/generate-character-image-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        imageUrl: 'https://picsum.photos/seed/char/400/500', 
-        prompt: fullPrompt, 
-        style 
-      })
-    });
-    return await res.json();
+  // 스크롤 시 헤더 배경
+  const landing = document.getElementById('landingPage');
+  const header  = document.getElementById('landingHeader');
+  if (landing && header) {
+    landing.addEventListener('scroll', () => {
+      header.classList.toggle('scrolled', landing.scrollTop > 20);
+    }, { passive: true });
   }
 }
 
-// ── 수동 이미지 생성 테스트 ──
-async function testGenerateImage() {
-  const btn = document.getElementById('testGenBtn');
-  const log = document.getElementById('genLog');
-  log.style.display = 'block';
-  btn.disabled = true;
-  btn.textContent = '⏳ 생성 중...';
+function showLanding() {
+  currentPage = 'landing';
+  document.getElementById('landingPage').style.display = 'flex';
+  document.getElementById('chatPage').classList.remove('active');
+}
+function showChat() {
+  currentPage = 'chat';
+  document.getElementById('landingPage').style.display = 'none';
+  document.getElementById('chatPage').classList.add('active');
+}
+function goToLanding() { showLanding(); }
 
-  const prompt = document.getElementById('customPrompt').value || '캐릭터 기본 표정';
-  const style  = document.getElementById('genStyle').value;
-  const extra  = selectedPreset;
-  const fullPrompt = [extra, prompt].filter(Boolean).join(', ');
+async function startChat() {
+  showChat();
+  if (document.getElementById('chatMsgs').children.length === 0) {
+    appendSysMsg('— 대화 시작 —');
+    if (charData?.openingMessage) {
+      appendAiSets([parseMsg(charData.openingMessage)]);
+    }
+    if (!charData?.hasApi) {
+      appendSysMsg('⚠️ API가 설정되지 않아 대화가 제한될 수 있습니다.');
+    }
+  }
+  setTimeout(() => document.getElementById('msgInput')?.focus(), 100);
+}
 
-  addLog(log, `▶ 요청: "${fullPrompt}" (스타일: ${style})`, '');
-
+async function startChatWithHistory() {
+  const charName = localStorage.getItem('charName') || '';
   try {
-    const result = await generateImage(fullPrompt);
-    if (result.success) {
-      addLog(log, `✅ 성공! imageUrl: ${result.imageUrl?.substring(0,60)}...`, 'ok');
-      if (result.mock) addLog(log, `⚠️ 테스트 모드 (DomoAI API 키 미설정)`, 'warn');
-      // 채팅창에 결과 표시
-      const msgs = document.getElementById('chatMessages');
-      const card = document.createElement('div');
-      card.className = 'image-card';
-      card.style.maxWidth = '260px';
-      card.style.margin = '8px 16px';
-      card.innerHTML = `
-        <img src="${result.imageUrl}" alt="테스트 생성" onload="scrollBottom()" />
-        <div class="img-overlay">
-          <span class="img-prompt">${escHtml(fullPrompt)}</span>
-          <span class="img-badge">${result.mock ? '테스트' : 'DomoAI'}</span>
-        </div>`;
-      card.onclick = () => openLightbox(result.imageUrl);
-      msgs.appendChild(card);
-      scrollBottom();
+    const headers = { 'Authorization': `Bearer ${authToken}` };
+    const res  = await fetch('/api/chat/history', { headers });
+    const data = await res.json();
+    if (res.ok && data.count > 0) {
+      await restoreChatHistory(data.count, charName);
     } else {
-      addLog(log, `❌ 오류: ${result.error}`, 'err');
+      await startChat();
     }
   } catch(e) {
-    addLog(log, `❌ 네트워크 오류: ${e.message}`, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '✨ 지금 이미지 생성 테스트';
+    await startChat();
   }
+  setTimeout(() => document.getElementById('msgInput')?.focus(), 100);
 }
 
-function addLog(el, msg, type) {
-  const span = document.createElement('div');
-  span.className = type ? `log-${type}` : '';
-  span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  el.appendChild(span);
-  el.scrollTop = el.scrollHeight;
-}
-
-// ── 채팅에서 이미지 생성 트리거 ──
-async function triggerImageGen() {
-  const input = document.getElementById('msgInput');
-  const context = input.value.trim() || '현재 장면';
-  const prompt = `${context}, ${selectedPreset || ''}`;
-
-  const msgs = document.getElementById('chatMessages');
-  const skelId = `manual-${Date.now()}`;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'msg-group ai';
-  wrapper.innerHTML = `
-    <div class="msg-sender">
-      <img src="${charAvatarSrc}" alt="도하준" />
-      <span>도하준</span>
-    </div>
-    <div class="image-skeleton" id="${skelId}">
-      <div class="spinner"></div>
-      <span>🎨 DomoAI 이미지 생성 중...</span>
-    </div>`;
-  msgs.appendChild(wrapper);
-  scrollBottom();
-
-  isGenerating = true;
-  try {
-    const result = await generateImage(prompt);
-    const skel = document.getElementById(skelId);
-    if (skel && result.imageUrl) {
-      const card = document.createElement('div');
-      card.className = 'image-card';
-      card.innerHTML = `
-        <img src="${result.imageUrl}" alt="생성된 이미지" onload="scrollBottom()" />
-        <div class="img-overlay">
-          <span class="img-prompt">${escHtml(prompt.substring(0,40))}...</span>
-          <span class="img-badge">${result.mock ? '테스트 이미지' : 'DomoAI'}</span>
-        </div>`;
-      card.onclick = () => openLightbox(result.imageUrl);
-      skel.replaceWith(card);
-      scrollBottom();
-    }
-  } catch(e) {
-    const skel = document.getElementById(skelId);
-    if (skel) skel.innerHTML = '<span style="color:var(--danger);padding:16px">생성 실패</span>';
-  } finally {
-    isGenerating = false;
-  }
-}
-
-// ── 레퍼런스 이미지 처리 ──
-function previewRefImage(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const dataUrl = e.target.result;
-    const base64  = dataUrl.split(',')[1];
-    refImageBase64 = base64;
-    refImageUrl    = null;
-    const preview = document.getElementById('refPreview');
-    const hint    = document.getElementById('uploadHint');
-    preview.src = dataUrl;
-    preview.style.display = 'block';
-    hint.style.display = 'none';
-    // 헤더 아바타도 업데이트
-    charAvatarSrc = dataUrl;
-    document.getElementById('headerAvatar').src = dataUrl;
-  };
-  reader.readAsDataURL(file);
-}
-
-function loadRefFromUrl() {
-  const url = document.getElementById('refImageUrl').value.trim();
-  if (!url) return;
-  refImageUrl = url;
-  refImageBase64 = null;
-  const preview = document.getElementById('refPreview');
-  const hint    = document.getElementById('uploadHint');
-  preview.src = url;
-  preview.style.display = 'block';
-  hint.style.display = 'none';
-  charAvatarSrc = url;
-  document.getElementById('headerAvatar').src = url;
-}
-
-function setPreset(el, preset) {
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-  if (selectedPreset === preset) {
-    selectedPreset = '';
+// ── 인증 ─────────────────────────────────
+async function initAuth() {
+  if (!authToken) {
+    await createGuestSession();
   } else {
-    selectedPreset = preset;
-    el.classList.add('active');
+    // 저장된 토큰 검증: 이미 로그인된 회원인지 확인
+    updateTokenBadge();
+    updateLoginButton();
+    if (!isGuest) {
+      // 회원으로 재진입 → 히스토리 확인 후 복원
+      try {
+        const headers = { 'Authorization': `Bearer ${authToken}` };
+        const res  = await fetch('/api/chat/history', { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.count > 0) {
+            // 랜딩 버튼을 "이어하기"로 변경
+            const lhBtns = document.getElementById('landingHeaderBtns');
+            if (lhBtns) {
+              lhBtns.innerHTML = `<button class="lh-btn primary" onclick="startChatWithHistory()">💬 이어서 대화</button>`;
+            }
+            // 시작 버튼 텍스트도 변경
+            const startBtn = document.querySelector('.start-btn');
+            if (startBtn) {
+              startBtn.textContent = `💬 이어서 대화하기 (${data.count}턴)`;
+              startBtn.onclick = startChatWithHistory;
+            }
+          }
+        }
+      } catch(e) {}
+    }
   }
 }
 
-// ── UI 유틸 ──
-let typingEl = null;
-function showTyping() {
-  const msgs = document.getElementById('chatMessages');
-  typingEl = document.createElement('div');
-  typingEl.className = 'msg-group ai';
-  typingEl.id = 'typingIndicator';
-  typingEl.innerHTML = `
-    <div class="msg-sender">
-      <img src="${charAvatarSrc}" alt="도하준" />
-      <span>도하준</span>
-    </div>
-    <div class="typing-indicator">
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
+async function createGuestSession() {
+  try {
+    const res  = await fetch('/api/guest/init', { method: 'POST' });
+    const data = await res.json();
+    authToken  = data.token;
+    userId     = data.userId;
+    isGuest    = true;
+    tokenUsed  = data.tokenUsed;
+    tokenLimit = data.tokenLimit;
+    saveAuthLocal();
+    updateTokenBadge();
+    updateLoginButton();
+    document.getElementById('guestLimitTxt').textContent = data.tokenLimit + '회';
+  } catch(e) { console.error('게스트 생성 오류:', e); }
+}
+
+function saveAuthLocal() {
+  localStorage.setItem('authToken',    authToken    || '');
+  localStorage.setItem('userId',       userId       || '');
+  localStorage.setItem('isGuest',      isGuest ? 'true' : 'false');
+  localStorage.setItem('tokenUsed',    String(tokenUsed));
+  localStorage.setItem('tokenLimit',   String(tokenLimit));
+  localStorage.setItem('userNickname', userNickname || '');
+}
+
+function updateTokenBadge() {
+  const remaining = tokenLimit - tokenUsed;
+  const badge = document.getElementById('tokenBadge');
+  badge.className = 'token-badge';
+  if (remaining <= 0) {
+    badge.textContent = '🎫 소진됨'; badge.className = 'token-badge danger';
+  } else if (remaining <= 3) {
+    badge.textContent = `🎫 ${remaining}회`; badge.className = 'token-badge warn';
+  } else {
+    badge.textContent = `🎫 ${remaining}회`;
+  }
+}
+
+function updateLoginButton() {
+  const btn = document.getElementById('loginBtn');
+  if (!isGuest && userNickname) {
+    btn.textContent = `👤 ${userNickname}`; btn.onclick = null;
+  } else if (!isGuest) {
+    btn.textContent = '👤 계정'; btn.onclick = null;
+  } else {
+    btn.textContent = '👤'; btn.onclick = openLoginModal;
+  }
+  const lhBtns = document.getElementById('landingHeaderBtns');
+  if (lhBtns && !isGuest) {
+    lhBtns.innerHTML = `<button class="lh-btn primary" onclick="startChat()">채팅 이어하기</button>`;
+  }
+}
+
+function onTokenBadgeClick() { if (isGuest) openRegisterModal(); }
+
+// ══════════════════════════════════════════
+//  채팅 전송
+// ══════════════════════════════════════════
+function renderHints() {
+  const hints = [
+    { label:'👋 인사',      text:'안녕.' },
+    { label:'😊 표정',      text:'지금 무슨 표정이야?' },
+    { label:'💬 일상',      text:'오늘 하루 어땠어?' },
+    { label:'🤔 힘들어',    text:'요즘 좀 힘들어.' },
+  ];
+  document.getElementById('hintRow').innerHTML =
+    hints.map(h => `<span class="hchip" onclick="setInput('${esc(h.text)}')">${esc(h.label)}</span>`).join('') +
+    `<span class="hchip" onclick="resetChat()">🔄 초기화</span>`;
+}
+
+async function sendMsg() {
+  const input = document.getElementById('msgInput');
+  const text  = input.value.trim();
+  if (!text || isLoading) return;
+
+  if (tokenUsed >= tokenLimit) { showTokenExhaustedBanner(); return; }
+
+  appendUserMsg(text);
+  input.value = ''; autoResize(input);
+  setLoading(true); showTyping();
+
+  try {
+    const headers = { 'Content-Type':'application/json' };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+    const res  = await fetch('/api/chat', {
+      method:'POST', headers,
+      body: JSON.stringify({ message: text, sessionId: SESSION_ID }),
+    });
+    const data = await res.json();
+    hideTyping();
+
+    if (res.status === 402) {
+      tokenUsed = tokenLimit; saveAuthLocal(); updateTokenBadge();
+      showTokenExhaustedBanner(); return;
+    }
+    if (!res.ok || data.error) { appendErrMsg('⚠️ ' + (data.error||'오류가 발생했습니다.')); return; }
+
+    if (data.tokenUsed !== undefined) {
+      tokenUsed = data.tokenUsed; tokenLimit = data.tokenLimit;
+      saveAuthLocal(); updateTokenBadge();
+    }
+
+    const sets = data.sets?.length ? data.sets : [{ narrative: data.narrative, dialogue: data.dialogue }];
+    appendAiSets(sets);
+
+    if (data.imageData) appendSituationImage(data.imageData, null);
+
+    const remaining = tokenLimit - tokenUsed;
+    if (isGuest && remaining > 0 && remaining <= 3)
+      appendSysMsg(`💡 무료 대화 ${remaining}회 남음. 회원가입하면 계속 즐길 수 있어요!`);
+
+  } catch(e) {
+    hideTyping(); appendErrMsg('⚠️ 연결 오류: ' + e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function showTokenExhaustedBanner() {
+  if (document.getElementById('tokenExhaustedBanner')) return;
+  const msgs = document.getElementById('chatMsgs');
+  const el   = document.createElement('div');
+  el.id = 'tokenExhaustedBanner';
+  el.innerHTML = `
+    <div class="token-exhausted-banner">
+      <div class="teb-title">✨ 무료 대화를 모두 사용했어요</div>
+      <div class="teb-desc">회원가입하면 100회 대화를 더 즐길 수 있어요.</div>
+      <div class="teb-btns">
+        <button class="teb-btn primary" onclick="closeLoginModal(); openRegisterModal()">회원가입</button>
+        <button class="teb-btn ghost" onclick="openLoginModal()">로그인</button>
+      </div>
     </div>`;
-  msgs.appendChild(typingEl);
+  msgs.appendChild(el);
+  scrollBottom();
+  document.getElementById('msgInput').disabled = true;
+  document.getElementById('sendBtn').disabled  = true;
+}
+
+// ══════════════════════════════════════════
+//  메시지 렌더링
+// ══════════════════════════════════════════
+function appendAiSets(sets) {
+  sets.forEach(s => { if (s.narrative || s.dialogue) appendAiMsg(s.narrative, s.dialogue); });
+}
+
+function appendAiMsg(narrative, dialogue) {
+  const msgs = document.getElementById('chatMsgs');
+  const grp  = document.createElement('div');
+  grp.className = 'msg-grp ai';
+  let content = '';
+  if (narrative) content += `<span class="narr">${esc(narrative)}</span>`;
+  if (dialogue)  content += `<span class="dial">${esc(dialogue)}</span>`;
+  if (!content)  content  = '<span class="dial">…</span>';
+  grp.innerHTML = `
+    <div class="sender">
+      <img src="${avatarSrc}" alt="${esc(charData?.name||'')}"/>
+      <span>${esc(charData?.name||'캐릭터')}</span>
+    </div>
+    <div class="bubble ai">${content}</div>`;
+  msgs.appendChild(grp);
   scrollBottom();
 }
 
-function hideTyping() {
-  const el = document.getElementById('typingIndicator');
-  if (el) el.remove();
+function appendUserMsg(text) {
+  const msgs = document.getElementById('chatMsgs');
+  const grp  = document.createElement('div');
+  grp.className = 'msg-grp user';
+  grp.innerHTML = `<div class="bubble user">${esc(text)}</div>`;
+  msgs.appendChild(grp);
+  scrollBottom();
+}
+
+function appendErrMsg(text) {
+  const msgs = document.getElementById('chatMsgs');
+  const grp  = document.createElement('div');
+  grp.className = 'msg-grp ai';
+  grp.innerHTML = `<div class="bubble err-b">${esc(text)}</div>`;
+  msgs.appendChild(grp);
+  scrollBottom();
+}
+
+function appendSysMsg(text) {
+  const msgs = document.getElementById('chatMsgs');
+  const el   = document.createElement('div');
+  el.className = 'sys-msg';
+  el.textContent = text;
+  msgs.appendChild(el);
+  scrollBottom();
+}
+
+function appendSituationImage(imgData, parentMsgId) {
+  const msgs = document.getElementById('chatMsgs');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-grp ai';
+  const type = imgData.src?.endsWith('.mp4')||imgData.src?.includes('video') ? 'video' : 'image';
+  const mediaEl = type === 'video'
+    ? `<video src="${imgData.src}" autoplay loop muted playsinline></video>`
+    : `<img src="${imgData.src}" alt="${esc(imgData.description||'')}" onload="scrollBottom()"/>`;
+  wrap.innerHTML = `
+    <div class="sender"><img src="${avatarSrc}" alt=""/><span>${esc(charData?.name||'')}</span></div>
+    <div class="situation-img-wrap">
+      <div class="sit-img-card" onclick="openLb('${type}','${imgData.src}')">
+        ${mediaEl}
+        <div class="sit-overlay">
+          <span class="sit-desc">${esc(imgData.description||imgData.trigger||'')}</span>
+          <span class="sit-badge">상황 이미지</span>
+        </div>
+      </div>
+    </div>`;
+  const parentEl = parentMsgId ? document.getElementById(parentMsgId) : null;
+  if (parentEl?.nextSibling) msgs.insertBefore(wrap, parentEl.nextSibling);
+  else msgs.appendChild(wrap);
+  scrollBottom();
+}
+
+// ══════════════════════════════════════════
+//  로그인 모달
+// ══════════════════════════════════════════
+function openLoginModal()  { document.getElementById('loginModal').classList.add('open'); setTimeout(()=>document.getElementById('loginEmail')?.focus(),100); }
+function closeLoginModal() { document.getElementById('loginModal').classList.remove('open'); }
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw    = document.getElementById('loginPw').value;
+  document.getElementById('loginErr').textContent = '';
+  if (!email||!pw) { document.getElementById('loginErr').textContent='이메일과 비밀번호를 입력해 주세요.'; return; }
+  try {
+    const res  = await fetch('/api/user/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ email, password:pw, guestToken: authToken })  // 게스트 토큰 같이 전달
+    });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('loginErr').textContent = data.error; return; }
+
+    const prevIsGuest = isGuest;
+    authToken=data.token; userId=data.userId; isGuest=false;
+    tokenUsed=data.tokenUsed; tokenLimit=data.tokenLimit; userNickname=data.nickname;
+    if (data.charName) localStorage.setItem('charName', data.charName);
+    saveAuthLocal(); updateTokenBadge(); updateLoginButton();
+    closeLoginModal(); removeExhaustedBanner();
+
+    // 이전 대화 히스토리 복원
+    if (data.hasHistory && data.historyCount > 0) {
+      await restoreChatHistory(data.historyCount);
+    } else if (currentPage==='chat') {
+      appendSysMsg(`✅ ${userNickname||''}님, 반갑습니다!`);
+    } else {
+      startChat();
+      setTimeout(()=>appendSysMsg(`✅ ${userNickname||''}님, 반갑습니다!`), 300);
+    }
+  } catch(e) { document.getElementById('loginErr').textContent='서버 오류: '+e.message; }
+}
+
+// ══════════════════════════════════════════
+//  회원가입
+// ══════════════════════════════════════════
+function openRegisterModal()  { document.getElementById('registerModal').classList.add('open'); setTimeout(()=>document.getElementById('regEmail')?.focus(),100); }
+function closeRegisterModal() { document.getElementById('registerModal').classList.remove('open'); }
+
+async function doRegisterStep1() {
+  const email    = document.getElementById('regEmail').value.trim();
+  const pw       = document.getElementById('regPw').value;
+  const nickname = document.getElementById('regNickname').value.trim();
+  document.getElementById('regErr').textContent = '';
+  if (!email) { document.getElementById('regErr').textContent='이메일을 입력해 주세요.'; return; }
+  if (pw.length<6) { document.getElementById('regErr').textContent='비밀번호는 6자 이상이어야 합니다.'; return; }
+  regTempData = { email, password:pw, nickname: nickname||email.split('@')[0] };
+  closeRegisterModal();
+  selectedGenres = [];
+  document.querySelectorAll('#genreGrid .genre-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('genreModal').classList.add('open');
+}
+
+function toggleGenre(el) {
+  const genre = el.dataset.genre;
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) { if (!selectedGenres.includes(genre)) selectedGenres.push(genre); }
+  else selectedGenres = selectedGenres.filter(g=>g!==genre);
+}
+
+function doGenreStep(skip=false) {
+  document.getElementById('genreModal').classList.remove('open');
+  regTempData.genres = skip ? [] : selectedGenres;
+  const charName = charData?.name||'캐릭터';
+  document.getElementById('charNameModalTitle').textContent = `${charName}가 뭐라고 불러드릴까요?`;
+  document.getElementById('charNameModalDesc').textContent  = `${charName}가 대화 중 사용자를 어떻게 부를지 설정해 주세요.\n설정하지 않으면 "너"로 호칭합니다.`;
+  document.getElementById('charNameInput').value = '';
+  document.getElementById('charNameModal').classList.add('open');
+  setTimeout(()=>document.getElementById('charNameInput')?.focus(),100);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('charNameInput');
+  if (inp) {
+    inp.addEventListener('input', () => {
+      const val = inp.value||'자기';
+      document.getElementById('charNamePreview').textContent  = val;
+      document.getElementById('charNamePreview2').textContent = val;
+    });
+  }
+});
+
+async function doCharNameStep(skip=false) {
+  document.getElementById('charNameModal').classList.remove('open');
+  regTempData.charName = skip ? '' : (document.getElementById('charNameInput').value.trim()||'');
+  try {
+    const res  = await fetch('/api/user/register',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email:regTempData.email, password:regTempData.password,
+        nickname:regTempData.nickname, genres:regTempData.genres||[],
+        charName:regTempData.charName||'', guestToken:authToken }),
+    });
+    const data = await res.json();
+    if (!res.ok) { appendErrMsg('⚠️ 가입 오류: '+data.error); return; }
+    authToken=data.token; userId=data.userId; isGuest=false;
+    tokenUsed=0; tokenLimit=data.tokenLimit; userNickname=data.nickname;
+    if (regTempData.charName) localStorage.setItem('charName', regTempData.charName);
+    saveAuthLocal(); updateTokenBadge(); updateLoginButton(); removeExhaustedBanner();
+    const charName = regTempData.charName||'';
+
+    // 이전 게스트 대화가 이어받아진 경우 히스토리 복원
+    if (data.hasHistory && data.historyCount > 0) {
+      await restoreChatHistory(data.historyCount, charName);
+    } else if (currentPage==='chat') {
+      appendSysMsg(`🎉 ${data.nickname}님, 환영합니다!`);
+      if (charName) appendSysMsg(`💬 ${charData?.name||'캐릭터'}가 앞으로 "${charName}"라고 불러드릴게요.`);
+    } else {
+      startChat();
+      setTimeout(()=>{
+        appendSysMsg(`🎉 ${data.nickname}님, 환영합니다!`);
+        if (charName) appendSysMsg(`💬 ${charData?.name||'캐릭터'}가 앞으로 "${charName}"라고 불러드릴게요.`);
+      }, 300);
+    }
+  } catch(e) { appendErrMsg('⚠️ 서버 오류: '+e.message); }
+}
+
+function removeExhaustedBanner() {
+  document.getElementById('tokenExhaustedBanner')?.remove();
+  document.getElementById('msgInput').disabled = false;
+  document.getElementById('sendBtn').disabled  = false;
+}
+
+// ══════════════════════════════════════════
+//  유틸
+// ══════════════════════════════════════════
+function openLb(type,url) {
+  document.getElementById('lbInner').innerHTML = type==='video'
+    ? `<video src="${url}" autoplay loop muted playsinline controls></video>`
+    : `<img src="${url}" alt=""/>`;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLb() { document.getElementById('lightbox').classList.remove('open'); }
+
+function parseMsg(raw) {
+  const narratives=[], dialogues=[];
+  const nr=/\*([^*]+)\*/gs; let nm;
+  while((nm=nr.exec(raw))!==null) narratives.push(nm[1].trim());
+  const dr=/"([^"]+)"/gs; let dm;
+  while((dm=dr.exec(raw))!==null) dialogues.push(dm[1].trim());
+  if (!narratives.length && !dialogues.length) return {narrative:'', dialogue:raw.trim()};
+  return {narrative:narratives[0]||'', dialogue:dialogues[0]||''};
+}
+
+function parseMsgSets(raw) {
+  const narratives=[], dialogues=[];
+  const nr=/\*([^*]+)\*/gs; let nm;
+  while((nm=nr.exec(raw))!==null) narratives.push(nm[1].trim());
+  const dr=/"([^"]+)"/gs; let dm;
+  while((dm=dr.exec(raw))!==null) dialogues.push(dm[1].trim());
+  const count=Math.max(narratives.length, dialogues.length, 1);
+  return Array.from({length:count},(_,i)=>({narrative:narratives[i]||'', dialogue:dialogues[i]||''}));
+}
+
+function showTyping() {
+  const msgs=document.getElementById('chatMsgs');
+  const el=document.createElement('div');
+  el.className='msg-grp ai'; el.id='typing';
+  el.innerHTML=`
+    <div class="sender"><img src="${avatarSrc}" alt=""/><span>${esc(charData?.name||'')}</span></div>
+    <div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>`;
+  msgs.appendChild(el); scrollBottom();
+}
+function hideTyping() { document.getElementById('typing')?.remove(); }
+
+function setLoading(v) {
+  isLoading=v;
+  document.getElementById('sendBtn').disabled=v;
 }
 
 function scrollBottom() {
-  const msgs = document.getElementById('chatMessages');
-  msgs.scrollTop = msgs.scrollHeight;
+  const m=document.getElementById('chatMsgs');
+  requestAnimationFrame(()=>m.scrollTop=m.scrollHeight);
 }
 
-function openLightbox(src) {
-  document.getElementById('lightboxImg').src = src;
-  document.getElementById('lightbox').classList.add('open');
-}
-function closeLightbox() {
-  document.getElementById('lightbox').classList.remove('open');
-}
-
-function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
+function onKey(e) {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
 }
 
 function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight, 100)+'px';
 }
 
-function insertHint(text) {
-  const input = document.getElementById('msgInput');
-  input.value = text;
-  input.focus();
-  autoResize(input);
+function setInput(t) {
+  const el=document.getElementById('msgInput');
+  el.value=t; el.focus(); autoResize(el);
 }
 
-function escHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+async function resetChat() {
+  if (!confirm('대화를 처음부터 다시 시작할까요?\n⚠️ 이전 대화 기록이 모두 삭제됩니다.')) return;
+
+  // 서버 히스토리 삭제 (로그인 회원인 경우)
+  if (authToken && !isGuest) {
+    try {
+      await fetch('/api/chat/history', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+    } catch(e) { console.error('히스토리 삭제 오류:', e); }
+  }
+
+  document.getElementById('chatMsgs').innerHTML='';
+  document.getElementById('tokenExhaustedBanner')?.remove();
+  appendSysMsg('— 대화 시작 —');
+  if (charData?.openingMessage) appendAiSets(parseMsgSets(charData.openingMessage));
+
+  // 시작 버튼 원래대로
+  const startBtn = document.querySelector('.start-btn');
+  if (startBtn) {
+    startBtn.textContent = '✦ 대화 시작하기';
+    startBtn.onclick = startChat;
+  }
 }
 
-function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+// ══════════════════════════════════════════
+//  이전 대화 복원 (로그인/회원가입 후)
+// ══════════════════════════════════════════
+async function restoreChatHistory(historyCount, welcomeCharName) {
+  // 채팅 페이지로 이동
+  if (currentPage !== 'chat') {
+    showChat();
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  // 기존 메시지 초기화 후 복원
+  document.getElementById('chatMsgs').innerHTML = '';
+
+  try {
+    const headers = { 'Content-Type':'application/json' };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res  = await fetch('/api/chat/history', { headers });
+    const data = await res.json();
+
+    if (!res.ok || !data.history || data.history.length === 0) {
+      appendSysMsg('— 대화 시작 —');
+      if (charData?.openingMessage) appendAiSets([parseMsg(charData.openingMessage)]);
+      return;
+    }
+
+    appendSysMsg('— 이전 대화 이어보기 —');
+
+    // history 배열을 순서대로 렌더링
+    const msgs = data.history;
+    for (let i = 0; i < msgs.length; i++) {
+      const m = msgs[i];
+      if (m.role === 'system') {
+        // 요약 메시지 표시
+        appendSysMsg('📝 ' + m.content.replace('[이전 대화 요약] ',''));
+      } else if (m.role === 'user') {
+        appendUserMsg(m.content);
+      } else if (m.role === 'assistant') {
+        const sets = parseMsgSets(m.content);
+        appendAiSets(sets);
+      }
+    }
+
+    appendSysMsg(`— 여기서부터 새 대화 —`);
+
+    // 환영 메시지
+    if (userNickname) {
+      const charName = welcomeCharName || localStorage.getItem('charName') || '';
+      appendSysMsg(`✅ ${userNickname}님, 다시 돌아오셨네요! (이전 대화 ${historyCount}턴 복원됨)`);
+      if (charName) appendSysMsg(`💬 ${charData?.name||'캐릭터'}가 "${charName}"라고 기억하고 있어요.`);
+    }
+
+    scrollBottom();
+  } catch(e) {
+    console.error('히스토리 복원 오류:', e);
+    appendSysMsg('— 대화 시작 —');
+    if (charData?.openingMessage) appendAiSets([parseMsg(charData.openingMessage)]);
+  }
+}
+
+function esc(s='') {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+}
+
+// 모달 바깥 클릭 닫기
+['loginModal','registerModal','genreModal','charNameModal'].forEach(id => {
+  document.getElementById(id)?.addEventListener('click', function(e) {
+    if (e.target===this) this.classList.remove('open');
+  });
+});
 </script>
 </body>
 </html>
